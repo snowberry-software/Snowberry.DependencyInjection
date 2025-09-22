@@ -9,7 +9,7 @@
         <Authors>Snowberry Software</Authors>
         <Description>A lightweight easy to use IoC container for .NET.</Description>
 
-        <AssemblyVersion>3.7.0.0</AssemblyVersion>
+        <AssemblyVersion>3.8.0.0</AssemblyVersion>
         <VersionPrefix>$(AssemblyVersion)</VersionPrefix>
 
         <IsPackable>true</IsPackable>
