@@ -1,4 +1,6 @@
-﻿using Snowberry.DependencyInjection.Tests.Services;
+﻿using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Implementation;
+using Snowberry.DependencyInjection.Tests.Services;
 using Snowberry.DependencyInjection.Tests.Services.Interfaces;
 using Xunit;
 
@@ -28,6 +30,7 @@ public class SingletonTests
         });
 
         Assert.Equal(1, serviceContainer.Count);
+        Assert.False(serviceContainer.TryAdd(ServiceDescriptor.Singleton(typeof(ITestService), typeof(TestService), singletonInstance: null)));
 
         var service = serviceContainer.GetService<ITestService>();
         Assert.NotNull(service);

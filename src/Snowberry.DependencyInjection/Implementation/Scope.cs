@@ -1,4 +1,4 @@
-﻿using Snowberry.DependencyInjection.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 
@@ -15,11 +15,9 @@ public class Scope : IScope
     /// Creates a new scope.
     /// </summary>
     /// <remarks>The <see cref="SetServiceFactory(IServiceFactory)"/> must be called before using the <see cref="ServiceFactory"/> property.</remarks>
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public Scope()
     {
     }
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
     /// <summary>
     /// Disposes the core.

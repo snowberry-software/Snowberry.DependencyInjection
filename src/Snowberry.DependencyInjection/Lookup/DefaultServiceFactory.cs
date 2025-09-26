@@ -1,6 +1,7 @@
-﻿using Snowberry.DependencyInjection.Helper;
+﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
+using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
-using Snowberry.DependencyInjection.Interfaces;
 using Snowberry.DependencyInjection.Lookup.Cache;
 
 namespace Snowberry.DependencyInjection.Lookup;

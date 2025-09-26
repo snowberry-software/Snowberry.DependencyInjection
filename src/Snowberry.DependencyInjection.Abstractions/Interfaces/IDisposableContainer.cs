@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Interfaces;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Provides a method to register disposable objects.

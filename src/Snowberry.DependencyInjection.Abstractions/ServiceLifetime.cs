@@ -1,6 +1,4 @@
-using Snowberry.DependencyInjection.Interfaces;
-
-namespace Snowberry.DependencyInjection;
+namespace Snowberry.DependencyInjection.Abstractions;
 
 /// <summary>
 /// Specifies the lifetime of a service in an <see cref="IServiceContainer"/>.

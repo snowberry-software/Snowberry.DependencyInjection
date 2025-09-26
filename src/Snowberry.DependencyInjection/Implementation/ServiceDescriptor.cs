@@ -1,4 +1,5 @@
-using Snowberry.DependencyInjection.Interfaces;
+using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 

@@ -1,4 +1,4 @@
-namespace Snowberry.DependencyInjection.Attributes;
+namespace Snowberry.DependencyInjection.Abstractions.Attributes;
 
 /// <summary>
 /// Indicates that the associated property should have a value injected during initialization.

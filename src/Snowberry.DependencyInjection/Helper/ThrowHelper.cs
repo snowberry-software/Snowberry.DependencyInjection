@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Snowberry.DependencyInjection.Abstractions;
 
 namespace Snowberry.DependencyInjection.Helper;
 

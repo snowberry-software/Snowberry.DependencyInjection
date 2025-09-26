@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Interfaces;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Used for storing scope specific service instances.

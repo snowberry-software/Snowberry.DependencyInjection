@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Interfaces;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Retrieves services using a key and a type.

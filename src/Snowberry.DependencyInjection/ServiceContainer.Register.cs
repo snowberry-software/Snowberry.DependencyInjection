@@ -1,6 +1,8 @@
-﻿using Snowberry.DependencyInjection.Helper;
+﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
+using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
-using Snowberry.DependencyInjection.Interfaces;
 
 namespace Snowberry.DependencyInjection;
 
@@ -291,17 +293,27 @@ public partial class ServiceContainer
 
             newDescriptor!.InstanceFactory = instanceFactory;
 
-            if (!foundExistingServiceDescriptor)
-            {
-                _serviceDescriptorMapping.TryAdd(serviceIdentifier, newDescriptor!);
-                return this;
-            }
+            return Register(newDescriptor, serviceKey: serviceKey);
+        }
+    }
 
-            if (AreRegisteredServicesReadOnly)
-                throw new InvalidOperationException($"Service type '{serviceType.FullName}' is already registered!");
+    /// <inheritdoc/>
+    public IServiceRegistry Register(IServiceDescriptor serviceDescriptor, object? serviceKey = null)
+    {
+        _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
 
-            UnregisterService(serviceType, serviceKey, out _);
-            _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newDescriptor!, (_, _) => newDescriptor!);
+        lock (_lock)
+        {
+            var serviceIdentifier = new ServiceIdentifier(serviceDescriptor.ServiceType, serviceKey);
+            bool foundExistingServiceDescriptor = _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
+
+            if (foundExistingServiceDescriptor && AreRegisteredServicesReadOnly)
+                throw new ServiceRegistryReadOnlyException($"Service type '{serviceDescriptor.ServiceType.FullName}' is already registered!");
+
+            if (foundExistingServiceDescriptor)
+                UnregisterService(serviceDescriptor.ServiceType, serviceKey, out _);
+
+            _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
             return this;
         }
     }
@@ -315,11 +327,14 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry UnregisterService(Type serviceType, object? serviceKey, out bool successful)
     {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
         lock (_lock)
         {
+            if (IsDisposed)
+                throw new ObjectDisposedException(GetType().FullName);
+
+            if (AreRegisteredServicesReadOnly)
+                throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
+
             var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
 
             if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))

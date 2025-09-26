@@ -1,4 +1,4 @@
-namespace Snowberry.DependencyInjection.Interfaces;
+namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// The factory that will be used to retrieve service instances.

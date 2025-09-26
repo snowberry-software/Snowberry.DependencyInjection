@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Interfaces;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Implements both service factories (<see cref="IServiceFactory"/>, <see cref="IServiceFactoryScoped"/>).

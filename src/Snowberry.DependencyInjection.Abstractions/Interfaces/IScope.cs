@@ -1,4 +1,4 @@
-namespace Snowberry.DependencyInjection.Interfaces;
+namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Defines a scope for services.

@@ -1,6 +1,6 @@
 ﻿using System.Reflection;
 
-namespace Snowberry.DependencyInjection.Interfaces;
+namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// <see cref="IServiceFactory"/> that is used for scopes.

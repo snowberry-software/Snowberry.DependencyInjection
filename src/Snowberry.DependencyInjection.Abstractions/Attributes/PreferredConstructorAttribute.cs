@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Attributes;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Attributes;
 
 /// <summary>
 /// Specifies which constructor should be used to instantiate an instance.

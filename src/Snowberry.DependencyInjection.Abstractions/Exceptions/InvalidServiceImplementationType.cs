@@ -1,6 +1,4 @@
-﻿using Snowberry.DependencyInjection.Interfaces;
-
-namespace Snowberry.DependencyInjection.Exceptions;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Exceptions;
 
 /// <summary>
 /// Gets thrown when the <see cref="IServiceFactory"/> could not instantiate a new instance for the service type.

@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Exceptions;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Exceptions;
 
 /// <summary>
 /// Gets thrown when a requested service is not registered.

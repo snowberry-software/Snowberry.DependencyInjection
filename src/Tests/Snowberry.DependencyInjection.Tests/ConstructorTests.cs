@@ -1,5 +1,5 @@
 ﻿using System.Reflection;
-using Snowberry.DependencyInjection.Attributes;
+using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Xunit;
 
 namespace Snowberry.DependencyInjection.Tests;

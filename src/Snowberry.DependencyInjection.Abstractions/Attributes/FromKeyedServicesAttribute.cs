@@ -1,4 +1,4 @@
-﻿namespace Snowberry.DependencyInjection.Attributes;
+﻿namespace Snowberry.DependencyInjection.Abstractions.Attributes;
 
 /// <summary>
 /// Specifies which key should be used to receive the keyed service.

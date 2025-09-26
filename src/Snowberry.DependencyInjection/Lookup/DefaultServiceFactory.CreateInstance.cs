@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
-using Snowberry.DependencyInjection.Attributes;
-using Snowberry.DependencyInjection.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Attributes;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Helper;
-using Snowberry.DependencyInjection.Interfaces;
 
 namespace Snowberry.DependencyInjection.Lookup;
 

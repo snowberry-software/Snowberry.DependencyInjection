@@ -1,4 +1,5 @@
-﻿using Snowberry.DependencyInjection.Exceptions;
+﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Tests.Services;
 using Snowberry.DependencyInjection.Tests.Services.Interfaces;
 using Snowberry.DependencyInjection.Tests.Services.PropertyTestServices;
@@ -35,7 +36,7 @@ public class DefaultTests
         using var serviceContainer = new ServiceContainer(ServiceContainerOptions.ReadOnly);
         serviceContainer.RegisterSingleton<ITestService, TestService>();
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<ServiceRegistryReadOnlyException>(() =>
         {
             serviceContainer.RegisterSingleton<ITestService, TestService>();
         });

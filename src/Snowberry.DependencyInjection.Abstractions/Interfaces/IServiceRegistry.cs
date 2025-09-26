@@ -1,4 +1,4 @@
-namespace Snowberry.DependencyInjection.Interfaces;
+namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Represents a registry to register services.
@@ -162,6 +162,14 @@ public interface IServiceRegistry
     IScope CreateScope();
 
     /// <summary>
+    /// Registers the given <paramref name="serviceDescriptor"/>.
+    /// </summary>
+    /// <param name="serviceDescriptor">The service descriptor.</param>
+    /// <param name="serviceKey">The service key.</param>
+    /// <returns>THe current <see cref="IServiceRegistry"/> instance.</returns>
+    IServiceRegistry Register(IServiceDescriptor serviceDescriptor, object? serviceKey);
+
+    /// <summary>
     /// Unregisters a registered service of the type <typeparamref name="T"/>.
     /// </summary>
     /// <remarks>All disposable instances from <typeparamref name="T"/> will be disposed as usual, except if it is a service with the lifetime of a <see cref="ServiceLifetime.Singleton"/>.
@@ -203,4 +211,5 @@ public interface IServiceRegistry
     /// <typeparam name="T">The type of the service.</param>
     /// <returns>Whether the given <typeparamref name="T"/> is registered or not.</returns>
     bool IsServiceRegistered<T>(object? serviceKey);
+
 }

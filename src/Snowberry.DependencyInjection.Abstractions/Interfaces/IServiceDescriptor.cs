@@ -1,4 +1,4 @@
-namespace Snowberry.DependencyInjection.Interfaces;
+namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
 /// Represents a factory function that creates an instance of a service.

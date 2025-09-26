@@ -1,4 +1,5 @@
-﻿using Snowberry.DependencyInjection.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Tests.Services;
 using Snowberry.DependencyInjection.Tests.Services.Interfaces;
 using Xunit;
