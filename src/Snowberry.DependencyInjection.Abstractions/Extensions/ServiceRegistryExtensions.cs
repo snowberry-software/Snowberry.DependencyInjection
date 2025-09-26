@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Snowberry.DependencyInjection.Abstractions.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Abstractions.Extensions;
 
