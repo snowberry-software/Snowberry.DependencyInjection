@@ -1,3 +1,4 @@
+using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 

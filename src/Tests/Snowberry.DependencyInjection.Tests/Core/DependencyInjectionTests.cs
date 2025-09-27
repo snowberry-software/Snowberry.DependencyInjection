@@ -1,4 +1,5 @@
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 

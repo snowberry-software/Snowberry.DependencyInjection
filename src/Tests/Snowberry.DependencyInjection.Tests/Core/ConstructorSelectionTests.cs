@@ -1,5 +1,6 @@
 using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
+using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 
