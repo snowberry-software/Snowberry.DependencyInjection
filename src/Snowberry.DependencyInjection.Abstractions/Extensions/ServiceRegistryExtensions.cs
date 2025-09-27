@@ -3,7 +3,7 @@
 namespace Snowberry.DependencyInjection.Abstractions.Extensions;
 
 /// <summary>
-/// Provides extension methods for <see cref="IServiceRegistry"/>.
+/// Provides extension methods for the <see cref="IServiceRegistry"/> type.
 /// </summary>
 public static class ServiceRegistryExtensions
 {

@@ -45,12 +45,15 @@ public partial class DefaultServiceFactory
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        var descriptor = ServiceDescriptorReceiver.GetOptionalServiceDescriptor(serviceType, serviceKey);
+        lock (_lock)
+        {
+            var descriptor = ServiceDescriptorReceiver.GetOptionalServiceDescriptor(serviceType, serviceKey);
 
-        if (descriptor == null)
-            return null;
+            if (descriptor == null)
+                return null;
 
-        return GetInstanceFromDescriptor(descriptor, scope, serviceType, serviceKey);
+            return GetInstanceFromDescriptor(descriptor, scope, serviceType, serviceKey);
+        }
     }
 
     /// <inheritdoc/>

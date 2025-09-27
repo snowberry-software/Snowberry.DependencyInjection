@@ -43,10 +43,16 @@ public readonly struct ServiceIdentifier : IServiceIdentifier
         if (ServiceKey == null)
             return ServiceType.GetHashCode();
 
+#if NETCOREAPP
+        return HashCode.Combine(ServiceType, ServiceKey);
+#else
         unchecked
         {
-            return (ServiceType.GetHashCode() * 0x1337) ^ ServiceKey.GetHashCode();
+            uint h1 = (uint)ServiceType.GetHashCode();
+            uint h2 = (uint)ServiceKey.GetHashCode();
+            return (int)(h1 ^ ((h2 << 16) | (h2 >> 16)));
         }
+#endif
     }
 
     /// <inheritdoc/>

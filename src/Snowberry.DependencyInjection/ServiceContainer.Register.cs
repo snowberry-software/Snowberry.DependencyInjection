@@ -13,20 +13,17 @@ public partial class ServiceContainer
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
-        lock (_lock)
-        {
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
-            return _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
-        }
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+        return _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
     }
 
     /// <inheritdoc/>
     public bool IsServiceRegistered<T>(object? serviceKey)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return IsServiceRegistered(typeof(T), serviceKey);
@@ -35,7 +32,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterSingleton<T>(ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -52,7 +49,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterSingleton<T>(object? serviceKey = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -69,7 +66,7 @@ public partial class ServiceContainer
     {
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -84,7 +81,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterSingleton<T, TImpl>(object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -99,7 +96,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterSingleton<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -116,7 +113,7 @@ public partial class ServiceContainer
     {
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -130,7 +127,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterTransient<T>(object? serviceKey = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -156,7 +153,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterTransient<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -171,7 +168,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterTransient<T, TImpl>(object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -185,7 +182,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterScoped<T>(object? serviceKey = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -199,7 +196,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterScoped<T>(ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -214,7 +211,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterScoped<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -229,7 +226,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry RegisterScoped<T, TImpl>(object? serviceKey = null) where TImpl : T
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return Register(
@@ -269,7 +266,7 @@ public partial class ServiceContainer
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
         _ = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         if (singletonInstance != null && lifetime != ServiceLifetime.Singleton)
@@ -278,23 +275,17 @@ public partial class ServiceContainer
         if (singletonInstance != null && instanceFactory != null)
             throw new ArgumentException("Singleton instance and instance factory can't be used together!", nameof(singletonInstance));
 
-        lock (_lock)
+        var newDescriptor = lifetime switch
         {
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
-            bool foundExistingServiceDescriptor = _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
+            ServiceLifetime.Singleton => ServiceDescriptor.Singleton(serviceType, implementationType, singletonInstance),
+            ServiceLifetime.Scoped => ServiceDescriptor.Scoped(serviceType, implementationType),
+            ServiceLifetime.Transient => ServiceDescriptor.Transient(serviceType, implementationType),
+            _ => ThrowHelper.ThrowServiceLifetimeNotImplemented(lifetime) as IServiceDescriptor
+        };
 
-            var newDescriptor = lifetime switch
-            {
-                ServiceLifetime.Singleton => ServiceDescriptor.Singleton(serviceType, implementationType, singletonInstance),
-                ServiceLifetime.Scoped => ServiceDescriptor.Scoped(serviceType, implementationType),
-                ServiceLifetime.Transient => ServiceDescriptor.Transient(serviceType, implementationType),
-                _ => ThrowHelper.ThrowServiceLifetimeNotImplemented(lifetime) as IServiceDescriptor
-            };
+        newDescriptor!.InstanceFactory = instanceFactory;
 
-            newDescriptor!.InstanceFactory = instanceFactory;
-
-            return Register(newDescriptor, serviceKey: serviceKey);
-        }
+        return Register(newDescriptor, serviceKey: serviceKey);
     }
 
     /// <inheritdoc/>
@@ -302,7 +293,8 @@ public partial class ServiceContainer
     {
         _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
 
-        lock (_lock)
+        _lock.EnterWriteLock();
+        try
         {
             var serviceIdentifier = new ServiceIdentifier(serviceDescriptor.ServiceType, serviceKey);
             bool foundExistingServiceDescriptor = _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
@@ -311,10 +303,14 @@ public partial class ServiceContainer
                 throw new ServiceRegistryReadOnlyException($"Service type '{serviceDescriptor.ServiceType.FullName}' is already registered!");
 
             if (foundExistingServiceDescriptor)
-                UnregisterService(serviceDescriptor.ServiceType, serviceKey, out _);
+                UnregisterServiceInternal(serviceDescriptor.ServiceType, serviceKey, out _);
 
             _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
             return this;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
         }
     }
 
@@ -327,27 +323,40 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry UnregisterService(Type serviceType, object? serviceKey, out bool successful)
     {
-        lock (_lock)
+        _lock.EnterWriteLock();
+        try
         {
-            if (IsDisposed)
+            if (_isDisposed)
                 throw new ObjectDisposedException(GetType().FullName);
 
-            if (AreRegisteredServicesReadOnly)
-                throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
+            return UnregisterServiceInternal(serviceType, serviceKey, out successful);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
 
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+    /// <summary>
+    /// Internal method to unregister service. Must be called within a write lock.
+    /// </summary>
+    private IServiceRegistry UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
+    {
+        if (AreRegisteredServicesReadOnly)
+            throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
 
-            if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+
+        if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))
+        {
+            if (serviceDescriptor.Lifetime is ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance is IDisposable disposableSingleton)
             {
-                if (serviceDescriptor.Lifetime is ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance is IDisposable disposableSingleton)
-                {
-                    _disposableContainer.Remove(disposableSingleton);
-                    disposableSingleton.Dispose();
-                }
-
-                successful = true;
-                return this;
+                _disposableContainer.Remove(disposableSingleton);
+                disposableSingleton.Dispose();
             }
+
+            successful = true;
+            return this;
         }
 
         successful = false;

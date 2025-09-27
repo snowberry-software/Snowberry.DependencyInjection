@@ -4,4 +4,4 @@
 /// Gets thrown when attempting to modify a read-only service registry.
 /// </summary>
 /// <param name="message">The message.</param>
-public class ServiceRegistryReadOnlyException(string message) : Exception(message);
+public sealed class ServiceRegistryReadOnlyException(string message) : Exception(message);
