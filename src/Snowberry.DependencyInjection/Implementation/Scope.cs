@@ -7,8 +7,13 @@ public class Scope : IScope
     /// <inheritdoc/>
     public event EventHandler? OnDispose;
 
-    private bool _isDisposed;
+#if NET9_0_OR_GREATER
+    private readonly Lock _lock = new();
+#else
     private readonly object _lock = new();
+#endif
+
+    private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
     /// <summary>
@@ -117,7 +122,7 @@ public class Scope : IScope
     }
 
     /// <inheritdoc/>
-    public IServiceFactory ServiceFactory { get; private set; }
+    public IServiceFactory ServiceFactory { get; private set; } = null!;
 
     /// <inheritdoc/>
     public bool IsDisposed => _isDisposed;

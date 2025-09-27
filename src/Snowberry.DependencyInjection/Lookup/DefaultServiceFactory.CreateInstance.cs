@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Collections.Concurrent;
+using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
@@ -8,6 +9,9 @@ namespace Snowberry.DependencyInjection.Lookup;
 
 public partial class DefaultServiceFactory
 {
+    private static readonly ConcurrentDictionary<Type, ConstructorInfo?> _constructorCache = new();
+    private static readonly ConcurrentDictionary<Type, PropertyCacheInfo[]> _injectablePropertiesCache = new();
+
     /// <inheritdoc/>
     public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
     {
@@ -37,24 +41,27 @@ public partial class DefaultServiceFactory
     /// <inheritdoc/>
     public ConstructorInfo? GetConstructor(Type instanceType)
     {
-        var constructors = instanceType.GetConstructors();
-
-        if (constructors.Length == 1)
-            return constructors[0];
-
-        // Check for preferred constructor.
-        for (int i = 0; i < constructors.Length; i++)
+        return _constructorCache.GetOrAdd(instanceType, type =>
         {
-            var constructor = constructors[i];
+            var constructors = instanceType.GetConstructors();
 
-            if (constructor.GetCustomAttribute<PreferredConstructorAttribute>() != null)
-                return constructor;
-        }
+            if (constructors.Length == 1)
+                return constructors[0];
 
-        // Otherwise get the constructor with the largest number of parameters.
-        return constructors
-            .OrderByDescending(c => c.GetParameters().Length)
-            .FirstOrDefault();
+            // Check for preferred constructor.
+            for (int i = 0; i < constructors.Length; i++)
+            {
+                var constructor = constructors[i];
+
+                if (constructor.GetCustomAttribute<PreferredConstructorAttribute>() != null)
+                    return constructor;
+            }
+
+            // Otherwise get the constructor with the largest number of parameters.
+            return constructors
+                .OrderByDescending(c => c.GetParameters().Length)
+                .FirstOrDefault();
+        });
     }
 
     /// <inheritdoc/>
@@ -82,42 +89,43 @@ public partial class DefaultServiceFactory
         }
         else
         {
-            object[] args = [.. constructor.GetParameters()
-                .Select(param =>
-                {
-                    object? serviceKey = null;
-                    var keyedServiceAttribute = param.GetCustomAttribute<FromKeyedServicesAttribute>();
+            var parameters = constructor.GetParameters().AsSpan();
+            object[] args = new object[parameters.Length];
 
-                    if (keyedServiceAttribute != null)
-                        serviceKey = keyedServiceAttribute.ServiceKey;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i];
+                object? serviceKey = null;
+                var keyedServiceAttribute = param.GetCustomAttribute<FromKeyedServicesAttribute>();
 
-                    return GetInstanceFromServiceType(param.ParameterType, scope, serviceKey);
-                })];
+                if (keyedServiceAttribute != null)
+                    serviceKey = keyedServiceAttribute.ServiceKey;
+
+                args[i] = GetInstanceFromServiceType(parameters[i].ParameterType, scope, serviceKey);
+            }
 
             object? instance = constructor.Invoke(args);
 
-            var properties = type.GetProperties()
-                .Where(x => x.SetMethod != null);
+            var properties = _injectablePropertiesCache.GetOrAdd(type, t =>
+                    [.. t.GetProperties()
+                        .Where(p => p.SetMethod != null && p.GetCustomAttribute<InjectAttribute>() != null)
+                        .Select(p => new PropertyCacheInfo(p))]);
 
-            foreach (var property in properties)
+            for (int i = 0; i < properties.Length; i++)
             {
-                var injectAttribute = property.GetCustomAttribute<InjectAttribute>();
-
-                if (injectAttribute == null)
-                    continue;
-
-                var keyedServiceAttribute = property.GetCustomAttribute<FromKeyedServicesAttribute>();
+                var property = properties[i];
+                var keyedServiceAttribute = property.FromKeyedServicesAttribute;
 
                 object? propertyValue = null;
                 if (keyedServiceAttribute != null)
-                    propertyValue = GetOptionalKeyedService(property.PropertyType, keyedServiceAttribute.ServiceKey, scope);
+                    propertyValue = GetOptionalKeyedService(property.PropertyInfo.PropertyType, keyedServiceAttribute.ServiceKey, scope);
                 else
-                    propertyValue = GetOptionalService(property.PropertyType, scope);
+                    propertyValue = GetOptionalService(property.PropertyInfo.PropertyType, scope);
 
-                if (injectAttribute.IsRequired && propertyValue is null)
-                    throw new ServiceTypeNotRegistered(property.PropertyType, $"The required service for the property `{property.Name}` is not registered!");
+                if (property.InjectAttribute.IsRequired && propertyValue is null)
+                    throw new ServiceTypeNotRegistered(property.PropertyInfo.PropertyType, $"The required service for the property `{property.PropertyInfo.Name}` is not registered!");
 
-                property.SetValue(instance, propertyValue);
+                property.PropertyInfo.SetValue(instance, propertyValue);
             }
 
             return instance;
@@ -125,5 +133,21 @@ public partial class DefaultServiceFactory
 
         ThrowHelper.ThrowInvalidConstructor(type);
         return null!;
+    }
+
+    private readonly struct PropertyCacheInfo
+    {
+        public PropertyCacheInfo(PropertyInfo propertyInfo)
+        {
+            PropertyInfo = propertyInfo;
+            FromKeyedServicesAttribute = propertyInfo.GetCustomAttribute<FromKeyedServicesAttribute>();
+            InjectAttribute = propertyInfo.GetCustomAttribute<InjectAttribute>() ?? throw new InvalidOperationException($"Property must have {nameof(Abstractions.Attributes.InjectAttribute)}!");
+        }
+
+        public PropertyInfo PropertyInfo { get; }
+
+        public FromKeyedServicesAttribute? FromKeyedServicesAttribute { get; }
+
+        public InjectAttribute InjectAttribute { get; }
     }
 }

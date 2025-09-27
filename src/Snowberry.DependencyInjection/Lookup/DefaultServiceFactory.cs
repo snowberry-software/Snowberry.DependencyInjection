@@ -8,7 +8,12 @@ namespace Snowberry.DependencyInjection.Lookup;
 
 public partial class DefaultServiceFactory : IScopedServiceFactory
 {
-    private object _lock = new();
+#if NET9_0_OR_GREATER
+    private readonly Lock _lock = new();
+#else
+    private readonly object _lock = new();
+#endif
+
     private List<IScopeServiceCacheEntry> _scopeCache = [];
 
     public DefaultServiceFactory(IServiceDescriptorReceiver serviceDescriptorReceiver)
