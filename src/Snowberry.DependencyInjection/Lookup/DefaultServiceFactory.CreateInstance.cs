@@ -64,6 +64,14 @@ public partial class DefaultServiceFactory
         });
     }
 
+    private PropertyCacheInfo[] GetInjectionProperties(Type type)
+    {
+        return _injectablePropertiesCache.GetOrAdd(type, t =>
+                    [.. t.GetProperties()
+                        .Where(p => p.SetMethod != null && p.GetCustomAttribute<InjectAttribute>() != null)
+                        .Select(p => new PropertyCacheInfo(p))]);
+    }
+
     /// <inheritdoc/>
     public object CreateInstance(Type type, IScope? scope, Type[]? genericTypeParameters = null)
     {
@@ -106,10 +114,7 @@ public partial class DefaultServiceFactory
 
             object? instance = constructor.Invoke(args);
 
-            var properties = _injectablePropertiesCache.GetOrAdd(type, t =>
-                    [.. t.GetProperties()
-                        .Where(p => p.SetMethod != null && p.GetCustomAttribute<InjectAttribute>() != null)
-                        .Select(p => new PropertyCacheInfo(p))]);
+            var properties = GetInjectionProperties(type);
 
             for (int i = 0; i < properties.Length; i++)
             {

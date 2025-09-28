@@ -40,6 +40,45 @@ public class Repository<T> : IRepository<T>
 }
 
 /// <summary>
+/// Specific repository implementation for TestEntity.
+/// </summary>
+public class TestEntityRepository : IRepository<TestEntity>
+{
+    private readonly List<TestEntity> _entities = [];
+    public bool IsDisposed { get; private set; }
+
+    public TestEntity? GetById(int id)
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(TestEntityRepository));
+
+        return _entities.FirstOrDefault(e => e.Id == id);
+    }
+
+    public IEnumerable<TestEntity> GetAll()
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(TestEntityRepository));
+
+        return _entities.AsReadOnly();
+    }
+
+    public void Add(TestEntity entity)
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(TestEntityRepository));
+
+        _entities.Add(entity);
+    }
+
+    public void Dispose()
+    {
+        IsDisposed = true;
+        _entities.Clear();
+    }
+}
+
+/// <summary>
 /// Generic processor for testing open generic services.
 /// </summary>
 public class GenericProcessor<T> : IGenericProcessor<T>
@@ -60,6 +99,35 @@ public class GenericProcessor<T> : IGenericProcessor<T>
             throw new ObjectDisposedException(nameof(GenericProcessor<T>));
 
         return $"GenericProcessor<{typeof(T).Name}>";
+    }
+
+    public void Dispose()
+    {
+        IsDisposed = true;
+    }
+}
+
+/// <summary>
+/// Specific string processor implementation.
+/// </summary>
+public class StringProcessor : IGenericProcessor<string>
+{
+    public bool IsDisposed { get; private set; }
+
+    public string Process(string input)
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(StringProcessor));
+
+        return $"Processed: {input}";
+    }
+
+    public string GetProcessorInfo()
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(StringProcessor));
+
+        return "StringProcessor";
     }
 
     public void Dispose()

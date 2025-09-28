@@ -12,7 +12,7 @@ var serviceContainer = new ServiceContainer();
 
 // Provided instances won't be disposed by the container.
 var providedSingletonInstance = new SomeType();
-serviceContainer.RegisterSingleton<ISomeType>(providedSingletonInstance);
+serviceContainer.RegisterSingleton<ISomeType>(instance: providedSingletonInstance);
 
 // The instance created by the container will be disposed by the container.
 serviceContainer.RegisterSingleton<ISomeOtherType, SomeOtherType>();
@@ -20,12 +20,15 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 
 // Dispose container
 serviceContainer.Dispose();
+
+// Or
+serviceContainer.DisposeAsync()
 ```
 
-Registered services can be overwritten
+Existing registered services can be overwritten, if the `ServiceContainer` is not created with the `ServiceContainerOptions.ReadOnly` option.
 
 ```cs
-...
+var serviceContainer = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
 
 serviceContainer.RegisterTransient<ITransientType, TransientType>();
 
@@ -34,12 +37,6 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 serviceContainer.RegisterSingleton<ITransientType, NewTransientType>();
 
 ...
-```
-
-This behavior can be disabled by using the `ServiceContainerOptions` and creating the `ServiceContainer` like this
-
-```cs
-var serviceContainer = new ServiceContainer(ServiceContainerOptions.ReadOnly);
 ```
 
 ## Scopes

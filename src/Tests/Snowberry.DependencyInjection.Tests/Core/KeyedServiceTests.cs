@@ -257,7 +257,7 @@ public class KeyedServiceTests
     public void UnregisterKeyedService_ShouldRemoveOnlySpecificKeyedService()
     {
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         const string key1 = "key1";
         const string key2 = "key2";
 

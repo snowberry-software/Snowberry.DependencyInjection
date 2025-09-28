@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
@@ -319,6 +320,26 @@ public partial class ServiceContainer : IServiceContainer
         {
             _lock.ExitReadLock();
         }
+    }
+
+    /// <inheritdoc/>
+    public IEnumerator<IServiceDescriptor> GetEnumerator()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _serviceDescriptorMapping.Values.GetEnumerator();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <inheritdoc/>
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 
     /// <inheritdoc/>

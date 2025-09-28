@@ -28,10 +28,10 @@ public class ServiceContainerRegistrationTests
     }
 
     [Fact]
-    public void RegisterService_WithSameInterface_ShouldOverwriteByDefault()
+    public void RegisterService_WithSameInterface_ShouldOverwriteCorrectly()
     {
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         var firstInstance = new TestService { Name = "First" };
         var secondInstance = new TestService { Name = "Second" };
 
@@ -90,7 +90,7 @@ public class ServiceContainerRegistrationTests
     public void UnregisterService_WithRegisteredService_ShouldRemoveAndDisposeService()
     {
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         var instance = new TestService();
         container.RegisterSingleton<ITestService>(instance);
 

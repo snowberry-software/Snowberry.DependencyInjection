@@ -150,7 +150,7 @@ public class ServiceDisposalTests
     public void UnregisterService_ShouldDisposeRegisteredInstance()
     {
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         container.RegisterSingleton<ITestService, TestService>();
         var service = (TestService)container.GetRequiredService<ITestService>();
 
@@ -169,7 +169,7 @@ public class ServiceDisposalTests
     public void UnregisterService_WithUserProvidedInstance_ShouldStillDispose()
     {
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         var userInstance = new TestService();
         container.RegisterSingleton<ITestService>(userInstance);
 

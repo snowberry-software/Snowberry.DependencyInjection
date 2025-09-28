@@ -283,7 +283,7 @@ public class ThreadSafetyExtremeLoadTests
         // Tests concurrent service overwrite operations
 
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         const int threadCount = 20;
         const int overwritesPerThread = 25;
         var exceptions = new ConcurrentBag<Exception>();
@@ -466,7 +466,7 @@ public class ThreadSafetyExtremeLoadTests
         // Extreme stress test with massive parallel load
 
         // Arrange
-        using var container = new ServiceContainer();
+        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
         container.RegisterSingleton<ITestService, TestService>();
         container.RegisterTransient<IDependentService, DependentService>();
         container.RegisterScoped<IComplexService, ComplexService>();
