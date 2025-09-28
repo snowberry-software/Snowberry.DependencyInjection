@@ -85,8 +85,8 @@ public class ThreadSafetyExtremeLoadTests
                 {
                     for (int j = 0; j < resolutionsPerThread; j++)
                     {
-                        var singleton = container.GetService<ITestService>();
-                        var transient = container.GetService<IDependentService>();
+                        var singleton = container.GetRequiredService<ITestService>();
+                        var transient = container.GetRequiredService<IDependentService>();
 
                         if (singleton == null)
                             throw new InvalidOperationException("Singleton service was null");
@@ -147,8 +147,8 @@ public class ThreadSafetyExtremeLoadTests
                     for (int j = 0; j < scopesPerThread; j++)
                     {
                         using var scope = container.CreateScope();
-                        var service = scope.ServiceFactory.GetService<ITestService>();
-                        var dependent = scope.ServiceFactory.GetService<IDependentService>();
+                        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
+                        var dependent = scope.ServiceFactory.GetRequiredService<IDependentService>();
 
                         if (service == null)
                             throw new InvalidOperationException("Scoped service was null");
@@ -228,7 +228,7 @@ public class ThreadSafetyExtremeLoadTests
                 {
                     for (int j = 0; j < 50; j++)
                     {
-                        var service = container.GetService<ITestService>();
+                        var service = container.GetRequiredService<ITestService>();
                         if (service == null)
                             throw new InvalidOperationException("Service was null");
                         Interlocked.Increment(ref resolutionCounter);
@@ -251,7 +251,7 @@ public class ThreadSafetyExtremeLoadTests
                     for (int j = 0; j < 20; j++)
                     {
                         using var scope = container.CreateScope();
-                        var service = scope.ServiceFactory.GetService<ITestService>();
+                        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
                         if (service == null)
                             throw new InvalidOperationException("Scoped service was null");
                         Interlocked.Increment(ref scopeCounter);
@@ -321,7 +321,7 @@ public class ThreadSafetyExtremeLoadTests
         Assert.Equal(1, container.Count); // Should still be 1 due to overwriting
 
         // Should be able to resolve the final service
-        var finalService = container.GetService<ITestService>();
+        var finalService = container.GetRequiredService<ITestService>();
         Assert.NotNull(finalService);
     }
 
@@ -355,7 +355,7 @@ public class ThreadSafetyExtremeLoadTests
                 {
                     for (int j = 0; j < accessesPerThread; j++)
                     {
-                        var service = container.GetService<ITestService>();
+                        var service = container.GetRequiredService<ITestService>();
                         if (service == null)
                             throw new InvalidOperationException("Service was null");
                         instances.Add(service);
@@ -417,7 +417,7 @@ public class ThreadSafetyExtremeLoadTests
                     {
                         try
                         {
-                            var service = container.GetService<ITestService>();
+                            var service = container.GetRequiredService<ITestService>();
                             if (service != null)
                             {
                                 Interlocked.Increment(ref successfulOperations);
@@ -493,13 +493,13 @@ public class ThreadSafetyExtremeLoadTests
                         switch (random.Next(4))
                         {
                             case 0: // Singleton access
-                                var singleton = container.GetService<ITestService>();
+                                var singleton = container.GetRequiredService<ITestService>();
                                 if (singleton == null)
                                     throw new InvalidOperationException("Singleton was null");
                                 break;
 
                             case 1: // Transient access
-                                var transient = container.GetService<IDependentService>();
+                                var transient = container.GetRequiredService<IDependentService>();
                                 if (transient == null)
                                     throw new InvalidOperationException("Transient was null");
                                 break;
@@ -507,7 +507,7 @@ public class ThreadSafetyExtremeLoadTests
                             case 2: // Scoped access
                                 using (var scope = container.CreateScope())
                                 {
-                                    var scoped = scope.ServiceFactory.GetService<IComplexService>();
+                                    var scoped = scope.ServiceFactory.GetRequiredService<IComplexService>();
                                     if (scoped == null)
                                         throw new InvalidOperationException("Scoped was null");
                                 }
@@ -549,7 +549,7 @@ public class ThreadSafetyExtremeLoadTests
         Assert.True(memoryUsed < 100 * 1024 * 1024); // Should use less than 100MB additional memory
 
         // Container should still be functional
-        var finalService = container.GetService<ITestService>();
+        var finalService = container.GetRequiredService<ITestService>();
         Assert.NotNull(finalService);
     }
 }

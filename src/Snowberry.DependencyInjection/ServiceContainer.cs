@@ -279,33 +279,6 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public object? GetOptionalService(Type serviceType)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalService(serviceType);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalService<T>()
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalService<T>();
-    }
-
-    /// <inheritdoc/>
-    public T GetService<T>()
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetService<T>();
-    }
-
-    /// <inheritdoc/>
     public object? GetService(Type serviceType)
     {
         if (_isDisposed)
@@ -315,39 +288,12 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public object GetKeyedService(Type serviceType, object? serviceKey)
+    public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
         if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return ServiceFactory.GetKeyedService(serviceType, serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public object? GetOptionalKeyedService(Type serviceType, object? serviceKey)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalKeyedService(serviceType, serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public T GetKeyedService<T>(object? serviceKey)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetKeyedService<T>(serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalKeyedService<T>(object? serviceKey)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalKeyedService<T>(serviceKey);
     }
 
     /// <inheritdoc/>

@@ -19,7 +19,7 @@ public class AsyncDisposalTests
         var container = new ServiceContainer();
         container.RegisterScoped<IAsyncTestService, AsyncTestService>();
 
-        testService = container.GetService<IAsyncTestService>();
+        testService = container.GetRequiredService<IAsyncTestService>();
         testService.Name = "AsyncTest";
 
         // Act
@@ -66,7 +66,7 @@ public class AsyncDisposalTests
         container.RegisterScoped<IAsyncTestService, AsyncTestService>();
         container.RegisterScoped<IAsyncTestService, AsyncDependentService>("dependent");
 
-        var globalService = container.GetService<IAsyncTestService>();
+        var globalService = container.GetRequiredService<IAsyncTestService>();
         globalService.Name = "Global";
 
         IAsyncTestService scopedService;
@@ -74,7 +74,7 @@ public class AsyncDisposalTests
 
         await using (var scope = container.CreateScope())
         {
-            scopedService = scope.ServiceFactory.GetService<IAsyncTestService>();
+            scopedService = scope.ServiceFactory.GetRequiredService<IAsyncTestService>();
             scopedDependentService = scope.ServiceFactory.GetKeyedService<IAsyncTestService>("dependent");
 
             scopedService.Name = "Scoped";
@@ -127,7 +127,7 @@ public class AsyncDisposalTests
 
         for (int i = 0; i < 5; i++)
         {
-            var service = container.GetService<IAsyncTestService>();
+            var service = container.GetRequiredService<IAsyncTestService>();
             service.Name = $"Transient_{i}";
             services.Add(service);
         }
@@ -151,7 +151,7 @@ public class AsyncDisposalTests
         // Arrange
         var container = new ServiceContainer();
         container.RegisterSingleton<IAsyncTestService, AsyncTestService>();
-        var service = container.GetService<IAsyncTestService>();
+        var service = container.GetRequiredService<IAsyncTestService>();
 
         // Act
         await container.DisposeAsync();
@@ -173,7 +173,7 @@ public class AsyncDisposalTests
         IAsyncTestService mainService;
         using (var scope = container.CreateScope())
         {
-            mainService = scope.ServiceFactory.GetService<IAsyncTestService>();
+            mainService = scope.ServiceFactory.GetRequiredService<IAsyncTestService>();
 
             Assert.NotNull(mainService);
 
@@ -198,7 +198,7 @@ public class AsyncDisposalTests
             return new AsyncTestService { Name = $"Factory_{factoryCallCount}" };
         });
 
-        var service = container.GetService<IAsyncTestService>();
+        var service = container.GetRequiredService<IAsyncTestService>();
 
         // Act
         await container.DisposeAsync();
@@ -216,7 +216,7 @@ public class AsyncDisposalTests
         var container = new ServiceContainer();
         container.RegisterSingleton<ITestService, HybridDisposableService>();
 
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
 
         // Act
         await container.DisposeAsync();
@@ -239,7 +239,7 @@ public class AsyncDisposalTests
 
         for (int i = 0; i < serviceCount; i++)
         {
-            var service = container.GetService<IAsyncTestService>();
+            var service = container.GetRequiredService<IAsyncTestService>();
             service.Name = $"Service_{i}";
             services.Add(service);
         }

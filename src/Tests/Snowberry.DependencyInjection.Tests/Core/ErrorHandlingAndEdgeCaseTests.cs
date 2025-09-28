@@ -25,7 +25,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ITestService, TestService>();
 
         // Act & Assert
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
         Assert.NotNull(service); // Should resolve without issues
     }
 
@@ -39,7 +39,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<IComplexService, ComplexService>();
 
         // Act
-        var service = container.GetService<IComplexService>();
+        var service = container.GetRequiredService<IComplexService>();
 
         // Assert
         Assert.NotNull(service);
@@ -77,8 +77,8 @@ public class ErrorHandlingAndEdgeCaseTests
         using var container = new ServiceContainer();
 
         // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => container.GetRequiredService(null!));
         Assert.Throws<ArgumentNullException>(() => container.GetService(null!));
-        Assert.Throws<ArgumentNullException>(() => container.GetOptionalService(null!));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<AbstractTestService>();
 
         // Act & Assert
-        Assert.Throws<InvalidServiceImplementationType>(container.GetService<AbstractTestService>);
+        Assert.Throws<InvalidServiceImplementationType>(container.GetRequiredService<AbstractTestService>);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ITestService>(); // No implementation type
 
         // Act & Assert
-        Assert.Throws<InvalidServiceImplementationType>(container.GetService<ITestService>);
+        Assert.Throws<InvalidServiceImplementationType>(container.GetRequiredService<ITestService>);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithPrivateConstructor>();
 
         // Act & Assert
-        var exception = Assert.ThrowsAny<Exception>(container.GetService<ServiceWithPrivateConstructor>);
+        var exception = Assert.ThrowsAny<Exception>(container.GetRequiredService<ServiceWithPrivateConstructor>);
 
         // The exact exception type depends on the library's implementation
         Assert.NotNull(exception);
@@ -126,7 +126,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         // Activator.CreateInstance wraps constructor exceptions in TargetInvocationException
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceWithThrowingConstructor>);
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
 
         // The actual constructor exception should be in InnerException
         Assert.NotNull(exception.InnerException);
@@ -142,7 +142,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithArgumentExceptionConstructor>();
 
         // Act & Assert
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceWithArgumentExceptionConstructor>);
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithArgumentExceptionConstructor>);
 
         Assert.NotNull(exception.InnerException);
         Assert.IsType<ArgumentException>(exception.InnerException);
@@ -157,7 +157,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithNullReferenceConstructor>();
 
         // Act & Assert
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceWithNullReferenceConstructor>);
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithNullReferenceConstructor>);
 
         Assert.NotNull(exception.InnerException);
         Assert.IsType<NullReferenceException>(exception.InnerException);
@@ -176,7 +176,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         // The exception should propagate up from the dependency
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceDependentOnThrowingService>);
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceDependentOnThrowingService>);
 
         Assert.NotNull(exception.InnerException);
         Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -195,7 +195,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         // Factory exceptions should be thrown directly, not wrapped
-        var exception = Assert.Throws<InvalidOperationException>(container.GetService<ITestService>);
+        var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ITestService>);
 
         Assert.Equal("Factory exception", exception.Message);
     }
@@ -211,7 +211,7 @@ public class ErrorHandlingAndEdgeCaseTests
         // Should throw the same wrapped exception each time for transient services
         for (int i = 0; i < 3; i++)
         {
-            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceWithThrowingConstructor>);
+            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
 
             Assert.NotNull(exception.InnerException);
             Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -233,7 +233,7 @@ public class ErrorHandlingAndEdgeCaseTests
         // Should throw the same exception consistently for singleton services
         for (int i = 0; i < 3; i++)
         {
-            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetService<ServiceWithThrowingConstructor>);
+            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
 
             Assert.NotNull(exception.InnerException);
             Assert.Equal("Constructor exception", exception.InnerException.Message);
@@ -252,7 +252,7 @@ public class ErrorHandlingAndEdgeCaseTests
         // Act & Assert
         using var scope = container.CreateScope();
 
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(scope.ServiceFactory.GetService<ServiceWithThrowingConstructor>);
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(scope.ServiceFactory.GetRequiredService<ServiceWithThrowingConstructor>);
 
         Assert.NotNull(exception.InnerException);
         Assert.Equal("Constructor exception", exception.InnerException.Message);
@@ -268,7 +268,7 @@ public class ErrorHandlingAndEdgeCaseTests
             throw new InvalidOperationException("Factory exception"));
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(container.GetService<ITestService>);
+        var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ITestService>);
 
         Assert.Equal("Factory exception", exception.Message);
     }
@@ -289,7 +289,7 @@ public class ErrorHandlingAndEdgeCaseTests
         // Act
         for (int i = 0; i < 1000; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         // Assert
@@ -311,7 +311,7 @@ public class ErrorHandlingAndEdgeCaseTests
         container.Register(typeof(ITestService), typeof(TestService), null, lifetime, null);
 
         // Act
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.NotNull(service);
@@ -347,7 +347,7 @@ public class ErrorHandlingAndEdgeCaseTests
             {
                 try
                 {
-                    return container.GetService<ITestService>();
+                    return container.GetRequiredService<ITestService>();
                 }
                 catch (Exception ex)
                 {

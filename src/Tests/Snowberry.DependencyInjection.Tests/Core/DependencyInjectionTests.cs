@@ -20,7 +20,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act
-        var service = container.GetService<IDependentService>();
+        var service = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotNull(service);
@@ -36,7 +36,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act & Assert
-        var exception = Assert.Throws<ServiceTypeNotRegistered>(container.GetService<IDependentService>);
+        var exception = Assert.Throws<ServiceTypeNotRegistered>(container.GetRequiredService<IDependentService>);
 
         Assert.Contains(typeof(ITestService).Name, exception.Message);
         Assert.Equal(0, container.DisposableCount);
@@ -51,7 +51,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IHybridService, HybridService>();
 
         // Act
-        var service = container.GetService<IHybridService>();
+        var service = container.GetRequiredService<IHybridService>();
 
         // Assert
         Assert.NotNull(service);
@@ -70,7 +70,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act
-        var service = container.GetService<IDependentService>();
+        var service = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotNull(service.PrimaryDependency);
@@ -88,8 +88,8 @@ public class DependencyInjectionTests
         container.RegisterTransient<IDependentService, DependentService>();
 
         // Act
-        var service1 = container.GetService<IDependentService>();
-        var service2 = container.GetService<IDependentService>();
+        var service1 = container.GetRequiredService<IDependentService>();
+        var service2 = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotSame(service1, service2);
@@ -110,8 +110,8 @@ public class DependencyInjectionTests
         IDependentService service1, service2;
         using (var scope = container.CreateScope())
         {
-            service1 = scope.ServiceFactory.GetService<IDependentService>();
-            service2 = scope.ServiceFactory.GetService<IDependentService>();
+            service1 = scope.ServiceFactory.GetRequiredService<IDependentService>();
+            service2 = scope.ServiceFactory.GetRequiredService<IDependentService>();
         }
 
         // Assert
@@ -131,8 +131,8 @@ public class DependencyInjectionTests
         container.RegisterTransient<IDependentService, DependentService>(); // Transient consumer
 
         // Act
-        var service1 = container.GetService<IDependentService>();
-        var service2 = container.GetService<IDependentService>();
+        var service1 = container.GetRequiredService<IDependentService>();
+        var service2 = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotSame(service1, service2); // Different transient instances
@@ -151,7 +151,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IComplexService, ComplexService>();
 
         // Act
-        var service = container.GetService<IComplexService>();
+        var service = container.GetRequiredService<IComplexService>();
 
         // Assert
         Assert.NotNull(service);
@@ -180,7 +180,7 @@ public class DependencyInjectionTests
         var services = new List<IDependentService>();
         for (int i = 0; i < serviceCount; i++)
         {
-            services.Add(container.GetService<IDependentService>());
+            services.Add(container.GetRequiredService<IDependentService>());
         }
 
         // Assert
@@ -207,7 +207,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act
-        var service = container.GetService<IDependentService>();
+        var service = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotNull(service);
@@ -224,7 +224,7 @@ public class DependencyInjectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act
-        var service = container.GetService<IDependentService>();
+        var service = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotNull(service);

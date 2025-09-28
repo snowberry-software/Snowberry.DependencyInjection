@@ -112,13 +112,18 @@ public class Scope : IScope
     /// <inheritdoc/>
     public void SetServiceFactory(IServiceFactory serviceFactory)
     {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(Scope));
+        _ = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
 
-        if (ServiceFactory != null)
-            throw new InvalidOperationException("The service factory is already set for the scope!");
+        lock (_lock)
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(Scope));
 
-        ServiceFactory = serviceFactory;
+            if (ServiceFactory != null)
+                throw new InvalidOperationException("The service factory is already set for the scope!");
+
+            ServiceFactory = serviceFactory;
+        }
     }
 
     /// <inheritdoc/>

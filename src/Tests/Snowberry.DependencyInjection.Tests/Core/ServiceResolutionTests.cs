@@ -22,7 +22,7 @@ public class ServiceResolutionTests
         container.RegisterSingleton<ITestService, TestService>();
 
         // Act
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.NotNull(service);
@@ -36,7 +36,7 @@ public class ServiceResolutionTests
         using var container = new ServiceContainer();
 
         // Act & Assert
-        var exception = Assert.Throws<ServiceTypeNotRegistered>(container.GetService<ITestService>);
+        var exception = Assert.Throws<ServiceTypeNotRegistered>(container.GetRequiredService<ITestService>);
 
         Assert.Contains(typeof(ITestService).Name, exception.Message);
     }
@@ -49,7 +49,7 @@ public class ServiceResolutionTests
         container.RegisterSingleton<ITestService, TestService>();
 
         // Act
-        var service = container.GetOptionalService<ITestService>();
+        var service = container.GetService<ITestService>();
 
         // Assert
         Assert.NotNull(service);
@@ -63,7 +63,7 @@ public class ServiceResolutionTests
         using var container = new ServiceContainer();
 
         // Act
-        var service = container.GetOptionalService<ITestService>();
+        var service = container.GetService<ITestService>();
 
         // Assert
         Assert.Null(service);
@@ -78,7 +78,7 @@ public class ServiceResolutionTests
         container.Dispose();
 
         // Act & Assert
-        Assert.Throws<ObjectDisposedException>(container.GetService<ITestService>);
+        Assert.Throws<ObjectDisposedException>(container.GetRequiredService<ITestService>);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class ServiceResolutionTests
         container.Dispose();
 
         // Act & Assert
-        Assert.Throws<ObjectDisposedException>(container.GetOptionalService<ITestService>);
+        Assert.Throws<ObjectDisposedException>(container.GetService<ITestService>);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class ServiceResolutionTests
 
         // Act
         var service = serviceKey == null
-            ? container.GetService<ITestService>()
+            ? container.GetRequiredService<ITestService>()
             : container.GetKeyedService<ITestService>(serviceKey);
 
         // Assert
@@ -177,7 +177,7 @@ public class ServiceResolutionTests
         {
             tasks.Add(Task.Run(() =>
             {
-                var service = container.GetService<ITestService>();
+                var service = container.GetRequiredService<ITestService>();
                 services.Add(service);
             }));
         }
@@ -201,7 +201,7 @@ public class ServiceResolutionTests
         container.Register(descriptor);
 
         // Act
-        object? service = container.GetService(typeof(ITestService));
+        object? service = container.GetRequiredService(typeof(ITestService));
 
         // Assert
         Assert.NotNull(service);
@@ -219,7 +219,7 @@ public class ServiceResolutionTests
         container.Register(descriptor);
 
         // Act
-        object? service = container.GetOptionalService(typeof(ITestService));
+        object? service = container.GetService(typeof(ITestService));
 
         // Assert
         Assert.NotNull(service);
@@ -235,7 +235,7 @@ public class ServiceResolutionTests
         using var container = new ServiceContainer();
 
         // Act
-        object? service = container.GetOptionalService(typeof(ITestService));
+        object? service = container.GetService(typeof(ITestService));
 
         // Assert
         Assert.Null(service);
@@ -251,8 +251,8 @@ public class ServiceResolutionTests
         container.Register(typeof(IRepository<>), typeof(Repository<>), null, ServiceLifetime.Singleton, null);
 
         // Act
-        var stringRepo = container.GetService<IRepository<string>>();
-        var intRepo = container.GetService<IRepository<int>>();
+        var stringRepo = container.GetRequiredService<IRepository<string>>();
+        var intRepo = container.GetRequiredService<IRepository<int>>();
 
         // Assert
         Assert.NotNull(stringRepo);
@@ -272,8 +272,8 @@ public class ServiceResolutionTests
         container.Register(typeof(IRepository<>), typeof(Repository<>), null, ServiceLifetime.Singleton, null);
 
         // Act
-        var listRepo = container.GetService<IRepository<List<string>>>();
-        var dictRepo = container.GetService<IRepository<Dictionary<string, int>>>();
+        var listRepo = container.GetRequiredService<IRepository<List<string>>>();
+        var dictRepo = container.GetRequiredService<IRepository<Dictionary<string, int>>>();
 
         // Assert
         Assert.NotNull(listRepo);

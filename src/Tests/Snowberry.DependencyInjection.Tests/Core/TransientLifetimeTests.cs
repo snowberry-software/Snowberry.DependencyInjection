@@ -18,8 +18,8 @@ public class TransientLifetimeTests
         container.RegisterTransient<ITestService, TestService>();
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.NotSame(service1, service2);
@@ -36,8 +36,8 @@ public class TransientLifetimeTests
         container.RegisterTransient<TestService>();
 
         // Act
-        var service1 = container.GetService<TestService>();
-        var service2 = container.GetService<TestService>();
+        var service1 = container.GetRequiredService<TestService>();
+        var service2 = container.GetRequiredService<TestService>();
 
         // Assert
         Assert.NotSame(service1, service2);
@@ -59,8 +59,8 @@ public class TransientLifetimeTests
         });
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.NotSame(service1, service2);
@@ -78,8 +78,8 @@ public class TransientLifetimeTests
         container.RegisterTransient<ITestService, TestService>();
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
         service1.Name = "Modified";
 
         // Assert
@@ -98,9 +98,9 @@ public class TransientLifetimeTests
             container.RegisterTransient<ITestService, TestService>();
             container.RegisterTransient<TestService>();
 
-            service1 = (TestService)container.GetService<ITestService>();
-            service2 = (TestService)container.GetService<ITestService>();
-            service3 = container.GetService<TestService>();
+            service1 = (TestService)container.GetRequiredService<ITestService>();
+            service2 = (TestService)container.GetRequiredService<ITestService>();
+            service3 = container.GetRequiredService<TestService>();
 
             Assert.Equal(3, container.DisposableCount);
         }
@@ -125,8 +125,8 @@ public class TransientLifetimeTests
         });
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Equal(2, capturedKeys.Count);
@@ -149,7 +149,7 @@ public class TransientLifetimeTests
         var services = new List<ITestService>();
         for (int i = 0; i < instanceCount; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         // Assert

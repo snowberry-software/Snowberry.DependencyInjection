@@ -18,8 +18,8 @@ public class SingletonLifetimeTests
         container.RegisterSingleton<ITestService, TestService>();
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Same(service1, service2);
@@ -35,7 +35,7 @@ public class SingletonLifetimeTests
         container.RegisterSingleton<ITestService>(providedInstance);
 
         // Act
-        var retrievedService = container.GetService<ITestService>();
+        var retrievedService = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Same(providedInstance, retrievedService);
@@ -56,8 +56,8 @@ public class SingletonLifetimeTests
         });
 
         // Act
-        var service1 = container.GetService<ITestService>();
-        var service2 = container.GetService<ITestService>();
+        var service1 = container.GetRequiredService<ITestService>();
+        var service2 = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Same(service1, service2);
@@ -74,8 +74,8 @@ public class SingletonLifetimeTests
         container.RegisterSingleton<TestService>();
 
         // Act
-        var service1 = container.GetService<TestService>();
-        var service2 = container.GetService<TestService>();
+        var service1 = container.GetRequiredService<TestService>();
+        var service2 = container.GetRequiredService<TestService>();
 
         // Assert
         Assert.Same(service1, service2);
@@ -93,8 +93,8 @@ public class SingletonLifetimeTests
             container.RegisterSingleton<ITestService, TestService>();
             container.RegisterSingleton<TestService>();
 
-            service1 = (TestService)container.GetService<ITestService>();
-            service2 = container.GetService<TestService>();
+            service1 = (TestService)container.GetRequiredService<ITestService>();
+            service2 = container.GetRequiredService<TestService>();
 
             Assert.Equal(2, container.DisposableCount);
         }
@@ -118,7 +118,7 @@ public class SingletonLifetimeTests
         });
 
         // Act
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Null(capturedServiceKey);

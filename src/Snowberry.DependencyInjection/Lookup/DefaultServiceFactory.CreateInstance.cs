@@ -2,8 +2,8 @@
 using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
-using Snowberry.DependencyInjection.Helper;
 
 namespace Snowberry.DependencyInjection.Lookup;
 
@@ -118,9 +118,9 @@ public partial class DefaultServiceFactory
 
                 object? propertyValue = null;
                 if (keyedServiceAttribute != null)
-                    propertyValue = GetOptionalKeyedService(property.PropertyInfo.PropertyType, keyedServiceAttribute.ServiceKey, scope);
+                    propertyValue = GetKeyedService(property.PropertyInfo.PropertyType, keyedServiceAttribute.ServiceKey, scope);
                 else
-                    propertyValue = GetOptionalService(property.PropertyInfo.PropertyType, scope);
+                    propertyValue = GetService(property.PropertyInfo.PropertyType, scope);
 
                 if (property.InjectAttribute.IsRequired && propertyValue is null)
                     throw new ServiceTypeNotRegistered(property.PropertyInfo.PropertyType, $"The required service for the property `{property.PropertyInfo.Name}` is not registered!");

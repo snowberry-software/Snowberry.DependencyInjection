@@ -21,8 +21,8 @@ public class ScopedLifetimeTests
 
         // Act
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetService<ITestService>();
-        var service2 = scope.ServiceFactory.GetService<ITestService>();
+        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Same(service1, service2);
@@ -40,12 +40,12 @@ public class ScopedLifetimeTests
         ITestService service1, service2;
         using (var scope1 = container.CreateScope())
         {
-            service1 = scope1.ServiceFactory.GetService<ITestService>();
+            service1 = scope1.ServiceFactory.GetRequiredService<ITestService>();
         }
 
         using (var scope2 = container.CreateScope())
         {
-            service2 = scope2.ServiceFactory.GetService<ITestService>();
+            service2 = scope2.ServiceFactory.GetRequiredService<ITestService>();
         }
 
         // Assert
@@ -62,11 +62,11 @@ public class ScopedLifetimeTests
         container.RegisterScoped<ITestService, TestService>();
 
         // Act
-        var containerService = container.GetService<ITestService>();
+        var containerService = container.GetRequiredService<ITestService>();
         ITestService scopedService;
         using (var scope = container.CreateScope())
         {
-            scopedService = scope.ServiceFactory.GetService<ITestService>();
+            scopedService = scope.ServiceFactory.GetRequiredService<ITestService>();
         }
 
         // Assert
@@ -92,8 +92,8 @@ public class ScopedLifetimeTests
         ITestService service1, service2;
         using (var scope = container.CreateScope())
         {
-            service1 = scope.ServiceFactory.GetService<ITestService>();
-            service2 = scope.ServiceFactory.GetService<ITestService>();
+            service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
+            service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
         }
 
         // Assert
@@ -115,15 +115,15 @@ public class ScopedLifetimeTests
         ITestService service;
         using (var scope = container.CreateScope())
         {
-            service = scope.ServiceFactory.GetService<ITestService>();
+            service = scope.ServiceFactory.GetRequiredService<ITestService>();
 
             if (lifetime == ServiceLifetime.Scoped)
             {
-                Assert.Same(service, scope.ServiceFactory.GetService<ITestService>());
+                Assert.Same(service, scope.ServiceFactory.GetRequiredService<ITestService>());
             }
             else
             {
-                Assert.NotSame(service, scope.ServiceFactory.GetService<ITestService>());
+                Assert.NotSame(service, scope.ServiceFactory.GetRequiredService<ITestService>());
             }
         }
 
@@ -146,7 +146,7 @@ public class ScopedLifetimeTests
         {
             var scope = container.CreateScope();
             scopes.Add(scope);
-            var service = scope.ServiceFactory.GetService<ITestService>();
+            var service = scope.ServiceFactory.GetRequiredService<ITestService>();
             service.Name = $"Service_{i}";
             services.Add(service);
         }
@@ -183,12 +183,12 @@ public class ScopedLifetimeTests
         ITestService outerService, innerService;
         using (var outerScope = container.CreateScope())
         {
-            outerService = outerScope.ServiceFactory.GetService<ITestService>();
+            outerService = outerScope.ServiceFactory.GetRequiredService<ITestService>();
             outerService.Name = "Outer";
 
             using (var innerScope = container.CreateScope())
             {
-                innerService = innerScope.ServiceFactory.GetService<ITestService>();
+                innerService = innerScope.ServiceFactory.GetRequiredService<ITestService>();
                 innerService.Name = "Inner";
 
                 // Services should be different
@@ -219,8 +219,8 @@ public class ScopedLifetimeTests
         IScope scope;
         using (scope = container.CreateScope())
         {
-            scope.ServiceFactory.GetService<ITestService>();
-            scope.ServiceFactory.GetService<TestService>();
+            scope.ServiceFactory.GetRequiredService<ITestService>();
+            scope.ServiceFactory.GetRequiredService<TestService>();
 
             Assert.Equal(2, scope.DisposableCount);
         }

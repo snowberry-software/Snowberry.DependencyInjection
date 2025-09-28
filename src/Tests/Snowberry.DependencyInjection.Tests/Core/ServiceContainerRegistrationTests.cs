@@ -40,7 +40,7 @@ public class ServiceContainerRegistrationTests
         container.RegisterSingleton<ITestService>(secondInstance);
 
         // Assert
-        var service = container.GetService<ITestService>();
+        var service = container.GetRequiredService<ITestService>();
         Assert.Equal("Second", service.Name);
         Assert.Equal(1, container.Count);
     }
@@ -68,7 +68,7 @@ public class ServiceContainerRegistrationTests
 
         // Assert
         Assert.Equal(1, container.Count);
-        var service = container.GetService<TestService>();
+        var service = container.GetRequiredService<TestService>();
         Assert.NotNull(service);
         Assert.IsType<TestService>(service);
     }
@@ -83,7 +83,7 @@ public class ServiceContainerRegistrationTests
         container.RegisterSingleton<ITestService>();
 
         // Assert
-        Assert.Throws<InvalidServiceImplementationType>(container.GetService<ITestService>);
+        Assert.Throws<InvalidServiceImplementationType>(container.GetRequiredService<ITestService>);
     }
 
     [Fact]

@@ -102,7 +102,7 @@ public class ConstructorSelectionTests
         container.RegisterSingleton<ServiceWithDependencies>();
 
         // Act
-        var service = container.GetService<ServiceWithDependencies>();
+        var service = container.GetRequiredService<ServiceWithDependencies>();
 
         // Assert
         Assert.NotNull(service);
@@ -122,7 +122,7 @@ public class ConstructorSelectionTests
         container.RegisterSingleton<ComplexConstructorService>();
 
         // Act
-        var service = container.GetService<ComplexConstructorService>();
+        var service = container.GetRequiredService<ComplexConstructorService>();
 
         // Assert
         Assert.NotNull(service);
@@ -143,7 +143,7 @@ public class ConstructorSelectionTests
         container.RegisterSingleton<PreferredConstructorComplexService>();
 
         // Act
-        var service = container.GetService<PreferredConstructorComplexService>();
+        var service = container.GetRequiredService<PreferredConstructorComplexService>();
 
         // Assert
         Assert.NotNull(service);
@@ -176,7 +176,7 @@ public class ConstructorSelectionTests
         Assert.Equal(2, constructor!.GetParameters().Length); // Still selects constructor with most parameters
 
         // But service resolution should fail due to missing IDependentService
-        Assert.ThrowsAny<Exception>(container.GetService<ComplexConstructorService>);
+        Assert.ThrowsAny<Exception>(container.GetRequiredService<ComplexConstructorService>);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class ConstructorSelectionTests
         Assert.Equal(2, constructor.GetParameters().Length);
 
         // But service resolution should fail due to missing IComplexService
-        Assert.ThrowsAny<Exception>(container.GetService<FallbackConstructorService>);
+        Assert.ThrowsAny<Exception>(container.GetRequiredService<FallbackConstructorService>);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class ConstructorSelectionTests
         Assert.Equal(2, constructor!.GetParameters().Length);
 
         // But service resolution should fail due to missing dependencies
-        Assert.ThrowsAny<Exception>(container.GetService<ComplexConstructorService>);
+        Assert.ThrowsAny<Exception>(container.GetRequiredService<ComplexConstructorService>);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class ConstructorSelectionTests
         container.RegisterSingleton<ParameterlessService>();
 
         // Act
-        var service = container.GetService<ParameterlessService>();
+        var service = container.GetRequiredService<ParameterlessService>();
 
         // Assert
         Assert.NotNull(service);
@@ -286,7 +286,7 @@ public class ConstructorSelectionTests
         container.RegisterSingleton<IDependentService, DependentService>();
 
         // Act
-        var service = container.GetService<IDependentService>();
+        var service = container.GetRequiredService<IDependentService>();
 
         // Assert
         Assert.NotNull(service);

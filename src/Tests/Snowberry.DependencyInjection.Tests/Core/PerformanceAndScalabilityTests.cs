@@ -50,7 +50,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<ITestService>();
         for (int i = 0; i < serviceCount; i++)
         {
-            services.Add(container.GetKeyedService<ITestService>($"service_{i}"));
+            services.Add(container.GetRequiredKeyedService<ITestService>($"service_{i}"));
         }
 
         stopwatch.Stop();
@@ -75,7 +75,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<ITestService>();
         for (int i = 0; i < resolutionCount; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         stopwatch.Stop();
@@ -101,7 +101,7 @@ public class PerformanceAndScalabilityTests
         for (int i = 0; i < scopeCount; i++)
         {
             using var scope = container.CreateScope();
-            services.Add(scope.ServiceFactory.GetService<ITestService>());
+            services.Add(scope.ServiceFactory.GetRequiredService<ITestService>());
         }
 
         stopwatch.Stop();
@@ -133,7 +133,7 @@ public class PerformanceAndScalabilityTests
         foreach (var type in testTypes)
         {
             var repositoryType = typeof(IRepository<>).MakeGenericType(type);
-            repositories.Add(container.GetService(repositoryType));
+            repositories.Add(container.GetRequiredService(repositoryType));
         }
 
         stopwatch.Stop();
@@ -161,7 +161,7 @@ public class PerformanceAndScalabilityTests
         for (int i = 0; i < resolutionCount; i++)
         {
             using var scope = container.CreateScope();
-            services.Add(scope.ServiceFactory.GetService<IComplexService>());
+            services.Add(scope.ServiceFactory.GetRequiredService<IComplexService>());
         }
 
         stopwatch.Stop();
@@ -186,7 +186,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<ITestService>();
         for (int i = 0; i < serviceCount; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         long finalMemory = GC.GetTotalMemory(false);
@@ -210,7 +210,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<ITestService>();
         for (int i = 0; i < serviceCount; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         Assert.Equal(serviceCount, container.DisposableCount);
@@ -246,7 +246,7 @@ public class PerformanceAndScalabilityTests
             {
                 for (int j = 0; j < resolutionsPerTask; j++)
                 {
-                    var service = container.GetService<IDependentService>();
+                    var service = container.GetRequiredService<IDependentService>();
                     Assert.NotNull(service);
                 }
             }));
@@ -283,7 +283,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<IDependentService>();
         for (int i = 0; i < hierarchyDepth; i++)
         {
-            services.Add(container.GetKeyedService<IDependentService>($"level_{i}"));
+            services.Add(container.GetRequiredKeyedService<IDependentService>($"level_{i}"));
         }
 
         stopwatch.Stop();
@@ -310,7 +310,7 @@ public class PerformanceAndScalabilityTests
         var services = new List<ITestService>();
         for (int i = 0; i < serviceCount; i++)
         {
-            services.Add(container.GetService<ITestService>());
+            services.Add(container.GetRequiredService<ITestService>());
         }
 
         stopwatch.Stop();

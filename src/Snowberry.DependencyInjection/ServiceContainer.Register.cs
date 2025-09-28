@@ -1,7 +1,7 @@
 ﻿using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
-using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
 
 namespace Snowberry.DependencyInjection;

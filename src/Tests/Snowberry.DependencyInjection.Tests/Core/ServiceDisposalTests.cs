@@ -20,8 +20,8 @@ public class ServiceDisposalTests
             container.RegisterSingleton<ITestService, TestService>();
             container.RegisterSingleton<TestService>();
 
-            service1 = (TestService)container.GetService<ITestService>();
-            service2 = container.GetService<TestService>();
+            service1 = (TestService)container.GetRequiredService<ITestService>();
+            service2 = container.GetRequiredService<TestService>();
 
             Assert.Equal(2, container.DisposableCount);
             Assert.False(service1.IsDisposed);
@@ -44,7 +44,7 @@ public class ServiceDisposalTests
 
             for (int i = 0; i < 5; i++)
             {
-                services.Add((TestService)container.GetService<ITestService>());
+                services.Add((TestService)container.GetRequiredService<ITestService>());
             }
 
             Assert.Equal(5, container.DisposableCount);
@@ -65,7 +65,7 @@ public class ServiceDisposalTests
         {
             container.RegisterSingleton<ITestService>(userProvidedService);
 
-            var retrievedService = container.GetService<ITestService>();
+            var retrievedService = container.GetRequiredService<ITestService>();
             Assert.Same(userProvidedService, retrievedService);
             Assert.Equal(0, container.DisposableCount); // User instances aren't tracked for disposal
         }
@@ -84,7 +84,7 @@ public class ServiceDisposalTests
         {
             container.RegisterSingleton<ITestService, TestService>();
 
-            containerCreatedService = (TestService)container.GetService<ITestService>();
+            containerCreatedService = (TestService)container.GetRequiredService<ITestService>();
             Assert.Equal(1, container.DisposableCount); // Container-created instances are tracked
         }
 
@@ -98,7 +98,7 @@ public class ServiceDisposalTests
         // Arrange
         var container = new ServiceContainer();
         container.RegisterSingleton<ITestService, TestService>();
-        var service = (TestService)container.GetService<ITestService>();
+        var service = (TestService)container.GetRequiredService<ITestService>();
 
         // Act
         container.Dispose();
@@ -118,7 +118,7 @@ public class ServiceDisposalTests
         container.Dispose();
 
         // Act & Assert
-        Assert.Throws<ObjectDisposedException>(container.GetService<ITestService>);
+        Assert.Throws<ObjectDisposedException>(container.GetRequiredService<ITestService>);
         Assert.Throws<ObjectDisposedException>(() => container.RegisterSingleton<TestService>());
         Assert.Throws<ObjectDisposedException>(container.CreateScope);
     }
@@ -135,14 +135,14 @@ public class ServiceDisposalTests
         container.RegisterSingleton<ITestService, TestService>();
         Assert.Equal(0, container.DisposableCount); // Not created yet
 
-        container.GetService<ITestService>();
+        container.GetRequiredService<ITestService>();
         Assert.Equal(1, container.DisposableCount); // Now created
 
         container.RegisterTransient<TestService>();
-        container.GetService<TestService>();
+        container.GetRequiredService<TestService>();
         Assert.Equal(2, container.DisposableCount);
 
-        container.GetService<TestService>(); // Another transient
+        container.GetRequiredService<TestService>(); // Another transient
         Assert.Equal(3, container.DisposableCount);
     }
 
@@ -152,7 +152,7 @@ public class ServiceDisposalTests
         // Arrange
         using var container = new ServiceContainer();
         container.RegisterSingleton<ITestService, TestService>();
-        var service = (TestService)container.GetService<ITestService>();
+        var service = (TestService)container.GetRequiredService<ITestService>();
 
         Assert.Equal(1, container.DisposableCount);
         Assert.False(service.IsDisposed);
@@ -196,9 +196,9 @@ public class ServiceDisposalTests
             container.RegisterTransient<TestService>("service2");
             container.RegisterSingleton<TestService>("service3");
 
-            services.Add(container.GetKeyedService<TestService>("service1"));
-            services.Add(container.GetKeyedService<TestService>("service2"));
-            services.Add(container.GetKeyedService<TestService>("service3"));
+            services.Add(container.GetRequiredKeyedService<TestService>("service1"));
+            services.Add(container.GetRequiredKeyedService<TestService>("service2"));
+            services.Add(container.GetRequiredKeyedService<TestService>("service3"));
 
             Assert.Equal(3, container.DisposableCount);
         }
@@ -214,12 +214,12 @@ public class ServiceDisposalTests
         using var container = new ServiceContainer();
         container.RegisterScoped<ITestService, TestService>();
 
-        var globalService = (TestService)container.GetService<ITestService>();
+        var globalService = (TestService)container.GetRequiredService<ITestService>();
         TestService scopedService;
 
         using (var scope = container.CreateScope())
         {
-            scopedService = (TestService)scope.ServiceFactory.GetService<ITestService>();
+            scopedService = (TestService)scope.ServiceFactory.GetRequiredService<ITestService>();
 
             Assert.NotSame(globalService, scopedService);
             Assert.False(globalService.IsDisposed);
@@ -243,7 +243,7 @@ public class ServiceDisposalTests
             container.RegisterSingleton<ITestService, TestService>();
             container.RegisterSingleton<IDependentService, DependentService>();
 
-            dependentService = (DependentService)container.GetService<IDependentService>();
+            dependentService = (DependentService)container.GetRequiredService<IDependentService>();
             testService = (TestService)dependentService.PrimaryDependency;
 
             Assert.Equal(2, container.DisposableCount);

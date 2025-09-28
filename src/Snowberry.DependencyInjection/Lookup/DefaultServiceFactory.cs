@@ -1,4 +1,5 @@
 ﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
@@ -187,59 +188,19 @@ public partial class DefaultServiceFactory : IScopedServiceFactory
     }
 
     /// <inheritdoc/>
-    public T? GetOptionalService<T>()
-    {
-        return GetOptionalService<T>(scope: null);
-    }
-
-    /// <inheritdoc/>
-    public T GetService<T>()
-    {
-        return GetService<T>(scope: null);
-    }
-
-    /// <inheritdoc/>
     public object? GetService(Type serviceType)
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        return GetOptionalService(serviceType, scope: null);
+        return GetService(serviceType, scope: null);
     }
 
     /// <inheritdoc/>
-    public object? GetOptionalService(Type serviceType)
-    {
-        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-
-        return GetOptionalService(serviceType, scope: null);
-    }
-
-    /// <inheritdoc/>
-    public object GetKeyedService(Type serviceType, object? serviceKey)
+    public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
         return GetKeyedService(serviceType, serviceKey, scope: null);
-    }
-
-    /// <inheritdoc/>
-    public object? GetOptionalKeyedService(Type serviceType, object? serviceKey)
-    {
-        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-
-        return GetOptionalKeyedService(serviceType, serviceKey, scope: null);
-    }
-
-    /// <inheritdoc/>
-    public T GetKeyedService<T>(object? serviceKey)
-    {
-        return GetKeyedService<T>(serviceKey, scope: null);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalKeyedService<T>(object? serviceKey)
-    {
-        return GetOptionalKeyedService<T>(serviceKey, scope: null);
     }
 
     /// <summary>

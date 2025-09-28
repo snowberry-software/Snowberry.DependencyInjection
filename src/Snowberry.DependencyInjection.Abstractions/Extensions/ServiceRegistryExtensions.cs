@@ -8,12 +8,13 @@ namespace Snowberry.DependencyInjection.Abstractions.Extensions;
 public static class ServiceRegistryExtensions
 {
     /// <summary>
-    /// Tries to add the given <paramref name="serviceDescriptor"/> to the <paramref name="serviceRegistry"/>.
+    /// Attempts to register the specified service descriptor if the service type is not already registered.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceDescriptor">The service descriptor.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <returns>Whether the service has been added.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceDescriptor">The service descriptor containing registration information.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="serviceDescriptor"/> is null.</exception>
     public static bool TryAdd(this IServiceRegistry serviceRegistry, IServiceDescriptor serviceDescriptor, object? serviceKey = null)
     {
         if (serviceRegistry.IsServiceRegistered(serviceDescriptor.ServiceType, serviceKey: serviceKey))
@@ -24,12 +25,13 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a singleton service of the type <typeparamref name="T"/>.
+    /// Registers a singleton service of type <typeparamref name="T"/> where the service type and implementation type are the same.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -42,13 +44,14 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a singleton service of the type <typeparamref name="T"/>.
+    /// Registers a singleton service of type <typeparamref name="T"/> using a factory function to create instances.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -61,13 +64,14 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Registers a singleton service of the type <typeparamref name="T"/> using the given <paramref name="instance"/>.
+    /// Registers a singleton service of type <typeparamref name="T"/> using a pre-created instance.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instance">The instance that will be returned when requesting the <typeparamref name="T"/> service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instance">The pre-created instance that will be returned when the service is requested.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
     {
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -82,13 +86,14 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a singleton service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a singleton service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(
@@ -101,14 +106,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a singleton service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a singleton service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>, using a factory function to create instances.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances of type <typeparamref name="TImpl"/>.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(
@@ -121,13 +127,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Registers a singleton service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/> using the given <paramref name="instance"/>.
+    /// Registers a singleton service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>, using a pre-created instance.
     /// </summary>
-    /// <param name="instance">The instance that will be returned when requesting the <typeparamref name="T"/> service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instance">The pre-created instance of type <typeparamref name="TImpl"/> that will be returned when the service is requested.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
     {
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -141,12 +149,14 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a transient service of the type <typeparamref name="T"/>.
+    /// Registers a transient service of type <typeparamref name="T"/> where the service type and implementation type are the same.
+    /// A new instance will be created each time the service is requested.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -158,13 +168,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a transient service of the type <typeparamref name="T"/>.
+    /// Registers a transient service of type <typeparamref name="T"/> using a factory function to create instances.
+    /// A new instance will be created each time the service is requested.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -177,13 +189,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a transient service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a transient service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>.
+    /// A new instance will be created each time the service is requested.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(
@@ -195,14 +209,16 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a transient service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a transient service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>, using a factory function to create instances.
+    /// A new instance will be created each time the service is requested.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances of type <typeparamref name="TImpl"/>.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(
@@ -215,12 +231,14 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a scoped service of the type <typeparamref name="T"/>.
+    /// Registers a scoped service of type <typeparamref name="T"/> where the service type and implementation type are the same.
+    /// A single instance will be created per scope and reused within that scope.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -232,13 +250,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a scoped service of the type <typeparamref name="T"/>.
+    /// Registers a scoped service of type <typeparamref name="T"/> using a factory function to create instances.
+    /// A single instance will be created per scope and reused within that scope.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The type of the service to register.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         return serviceRegistry.Register(
@@ -251,13 +271,15 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a scoped service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a scoped service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>.
+    /// A single instance will be created per scope and reused within that scope.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(
@@ -269,14 +291,16 @@ public static class ServiceRegistryExtensions
     }
 
     /// <summary>
-    /// Creates and registers a scoped service of the type <typeparamref name="TImpl"/> for the service <typeparamref name="T"/>.
+    /// Registers a scoped service where the service type is <typeparamref name="T"/> and the implementation type is <typeparamref name="TImpl"/>, using a factory function to create instances.
+    /// A single instance will be created per scope and reused within that scope.
     /// </summary>
-    /// <param name="serviceRegistry">The service registry.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The service to register.</typeparam>
-    /// <typeparam name="TImpl">The implementation of the service.</typeparam>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
+    /// <param name="serviceRegistry">The service registry to register the service with.</param>
+    /// <param name="instanceFactory">The factory function used to create service instances of type <typeparamref name="TImpl"/>.</param>
+    /// <param name="serviceKey">The optional key to associate with the service registration.</param>
+    /// <typeparam name="T">The service type to register.</typeparam>
+    /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
+    /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         return serviceRegistry.Register(

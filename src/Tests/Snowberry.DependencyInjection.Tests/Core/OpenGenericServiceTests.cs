@@ -20,9 +20,9 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act
-        var stringRepo1 = container.GetService<IRepository<string>>();
-        var stringRepo2 = container.GetService<IRepository<string>>();
-        var intRepo = container.GetService<IRepository<int>>();
+        var stringRepo1 = container.GetRequiredService<IRepository<string>>();
+        var stringRepo2 = container.GetRequiredService<IRepository<string>>();
+        var intRepo = container.GetRequiredService<IRepository<int>>();
 
         // Assert
         Assert.Same(stringRepo1, stringRepo2); // Same generic type should return same instance
@@ -40,13 +40,13 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Scoped, null);
 
         // Act
-        var globalRepo = container.GetService<IRepository<string>>();
+        var globalRepo = container.GetRequiredService<IRepository<string>>();
 
         IRepository<string> scopedRepo1, scopedRepo2;
         using (var scope = container.CreateScope())
         {
-            scopedRepo1 = scope.ServiceFactory.GetService<IRepository<string>>();
-            scopedRepo2 = scope.ServiceFactory.GetService<IRepository<string>>();
+            scopedRepo1 = scope.ServiceFactory.GetRequiredService<IRepository<string>>();
+            scopedRepo2 = scope.ServiceFactory.GetRequiredService<IRepository<string>>();
         }
 
         // Assert
@@ -65,8 +65,8 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Transient, null);
 
         // Act
-        var repo1 = container.GetService<IRepository<string>>();
-        var repo2 = container.GetService<IRepository<string>>();
+        var repo1 = container.GetRequiredService<IRepository<string>>();
+        var repo2 = container.GetRequiredService<IRepository<string>>();
 
         // Assert
         Assert.NotSame(repo1, repo2); // Different instances for transient services
@@ -86,10 +86,10 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act
-        var processor1 = container.GetService<IGenericProcessor<string>>();
-        var processor2 = container.GetService<IGenericProcessor<string>>();
-        var repo1 = container.GetService<IRepository<string>>();
-        var repo2 = container.GetService<IRepository<string>>();
+        var processor1 = container.GetRequiredService<IGenericProcessor<string>>();
+        var processor2 = container.GetRequiredService<IGenericProcessor<string>>();
+        var repo1 = container.GetRequiredService<IRepository<string>>();
+        var repo2 = container.GetRequiredService<IRepository<string>>();
 
         // Assert
         Assert.NotSame(processor1, processor2); // Transient services
@@ -110,7 +110,7 @@ public class OpenGenericServiceTests
 
         // Act
         var repositoryType = typeof(IRepository<>).MakeGenericType(genericType);
-        object? repository = container.GetService(repositoryType);
+        object? repository = container.GetRequiredService(repositoryType);
 
         // Assert
         Assert.NotNull(repository);
@@ -128,7 +128,7 @@ public class OpenGenericServiceTests
             "alternative", ServiceLifetime.Singleton, null);
 
         // Act
-        var defaultProcessor = container.GetService<IGenericProcessor<string>>();
+        var defaultProcessor = container.GetRequiredService<IGenericProcessor<string>>();
         var alternativeProcessor = container.GetKeyedService<IGenericProcessor<string>>("alternative");
 
         // Assert
@@ -148,15 +148,15 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act & Assert - Test with complex generic types
-        var listRepo = container.GetService<IRepository<List<int>>>();
+        var listRepo = container.GetRequiredService<IRepository<List<int>>>();
         Assert.NotNull(listRepo);
         Assert.IsType<Repository<List<int>>>(listRepo);
 
-        var dictRepo = container.GetService<IRepository<Dictionary<string, int>>>();
+        var dictRepo = container.GetRequiredService<IRepository<Dictionary<string, int>>>();
         Assert.NotNull(dictRepo);
         Assert.IsType<Repository<Dictionary<string, int>>>(dictRepo);
 
-        var entityRepo = container.GetService<IRepository<TestEntity>>();
+        var entityRepo = container.GetRequiredService<IRepository<TestEntity>>();
         Assert.NotNull(entityRepo);
         Assert.IsType<Repository<TestEntity>>(entityRepo);
     }
@@ -172,7 +172,7 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act
-        var processor = container.GetService<IGenericProcessor<TestEntity>>();
+        var processor = container.GetRequiredService<IGenericProcessor<TestEntity>>();
         var entity = new TestEntity { Id = 1, Name = "Test" };
         var processedEntity = processor.Process(entity);
 
@@ -195,7 +195,7 @@ public class OpenGenericServiceTests
         var repositories = new List<IRepository<int>>();
         for (int i = 0; i < 5; i++)
         {
-            repositories.Add(container.GetService<IRepository<int>>());
+            repositories.Add(container.GetRequiredService<IRepository<int>>());
         }
 
         // Assert
@@ -217,8 +217,8 @@ public class OpenGenericServiceTests
 
             for (int i = 0; i < 3; i++)
             {
-                stringRepositories.Add(container.GetService<IRepository<string>>());
-                intRepositories.Add(container.GetService<IRepository<int>>());
+                stringRepositories.Add(container.GetRequiredService<IRepository<string>>());
+                intRepositories.Add(container.GetRequiredService<IRepository<int>>());
             }
 
             Assert.Equal(6, container.DisposableCount);
@@ -246,8 +246,8 @@ public class OpenGenericServiceTests
         });
 
         // Act
-        var stringRepo1 = container.GetService<IRepository<string>>();
-        var stringRepo2 = container.GetService<IRepository<string>>();
+        var stringRepo1 = container.GetRequiredService<IRepository<string>>();
+        var stringRepo2 = container.GetRequiredService<IRepository<string>>();
 
         // Assert
         Assert.NotNull(stringRepo1);
@@ -264,7 +264,7 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act
-        var nestedRepo = container.GetService<IRepository<List<string>>>();
+        var nestedRepo = container.GetRequiredService<IRepository<List<string>>>();
 
         // Assert
         Assert.NotNull(nestedRepo);
@@ -280,9 +280,9 @@ public class OpenGenericServiceTests
             null, ServiceLifetime.Singleton, null);
 
         // Act
-        var stringRepo = container.GetService<IRepository<string>>(); // Reference type
-        var intRepo = container.GetService<IRepository<int>>(); // Value type
-        var boolRepo = container.GetService<IRepository<bool>>(); // Value type
+        var stringRepo = container.GetRequiredService<IRepository<string>>(); // Reference type
+        var intRepo = container.GetRequiredService<IRepository<int>>(); // Value type
+        var boolRepo = container.GetRequiredService<IRepository<bool>>(); // Value type
 
         // Assert
         Assert.NotNull(stringRepo);
@@ -307,8 +307,8 @@ public class OpenGenericServiceTests
         var repositories = new List<object>();
         for (int i = 0; i < 100; i++)
         {
-            repositories.Add(container.GetService<IRepository<string>>());
-            repositories.Add(container.GetService<IRepository<int>>());
+            repositories.Add(container.GetRequiredService<IRepository<string>>());
+            repositories.Add(container.GetRequiredService<IRepository<int>>());
         }
 
         stopwatch.Stop();

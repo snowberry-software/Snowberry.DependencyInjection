@@ -20,7 +20,7 @@ public class KeyedServiceTests
 
         // Act
         container.RegisterSingleton<ITestService>(instance, serviceKey);
-        var resolvedService = container.GetKeyedService<ITestService>(serviceKey);
+        var resolvedService = container.GetRequiredKeyedService<ITestService>(serviceKey);
 
         // Assert
         Assert.Same(instance, resolvedService);
@@ -42,8 +42,8 @@ public class KeyedServiceTests
         container.RegisterSingleton<ITestService>(service1, key1);
         container.RegisterSingleton<ITestService>(service2, key2);
 
-        var resolved1 = container.GetKeyedService<ITestService>(key1);
-        var resolved2 = container.GetKeyedService<ITestService>(key2);
+        var resolved1 = container.GetRequiredKeyedService<ITestService>(key1);
+        var resolved2 = container.GetRequiredKeyedService<ITestService>(key2);
 
         // Assert
         Assert.Same(service1, resolved1);
@@ -65,8 +65,8 @@ public class KeyedServiceTests
         container.RegisterSingleton<ITestService, TestService>(sharedKey);
         container.RegisterSingleton<TestService>(sharedKey);
 
-        var testService = container.GetKeyedService<ITestService>(sharedKey);
-        var concreteService = container.GetKeyedService<TestService>(sharedKey);
+        var testService = container.GetRequiredKeyedService<ITestService>(sharedKey);
+        var concreteService = container.GetRequiredKeyedService<TestService>(sharedKey);
 
         // Assert
         Assert.NotNull(testService);
@@ -83,11 +83,11 @@ public class KeyedServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        var service = new TestService { Name = serviceKey?.ToString() };
+        var service = new TestService { Name = serviceKey!.ToString()! };
 
         // Act
         container.RegisterSingleton<ITestService>(service, serviceKey);
-        var resolvedService = container.GetKeyedService<ITestService>(serviceKey);
+        var resolvedService = container.GetRequiredKeyedService<ITestService>(serviceKey);
 
         // Assert
         Assert.Same(service, resolvedService);
@@ -106,10 +106,10 @@ public class KeyedServiceTests
         container.RegisterSingleton<ITestService>((provider, key) =>
         {
             capturedKey = key;
-            return new TestService { Name = key?.ToString() };
+            return new TestService { Name = key?.ToString() ?? string.Empty };
         }, expectedKey);
 
-        var service = container.GetKeyedService<ITestService>(expectedKey);
+        var service = container.GetRequiredKeyedService<ITestService>(expectedKey);
 
         // Assert
         Assert.Equal(expectedKey, capturedKey);
@@ -117,7 +117,7 @@ public class KeyedServiceTests
     }
 
     [Fact]
-    public void GetKeyedService_WithUnregisteredKey_ShouldThrowException()
+    public void GetRequiredKeyedService_WithUnregisteredKey_ShouldThrowException()
     {
         // Arrange
         using var container = new ServiceContainer();
@@ -125,7 +125,7 @@ public class KeyedServiceTests
 
         // Act & Assert
         Assert.Throws<Snowberry.DependencyInjection.Abstractions.Exceptions.ServiceTypeNotRegistered>(() =>
-            container.GetKeyedService<ITestService>("nonExistentKey"));
+            container.GetRequiredKeyedService<ITestService>("nonExistentKey"));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class KeyedServiceTests
         container.RegisterSingleton<ITestService, TestService>(serviceKey);
 
         // Act
-        var service = container.GetOptionalKeyedService<ITestService>(serviceKey);
+        var service = container.GetRequiredKeyedService<ITestService>(serviceKey);
 
         // Assert
         Assert.NotNull(service);
@@ -151,7 +151,7 @@ public class KeyedServiceTests
         using var container = new ServiceContainer();
 
         // Act
-        var service = container.GetOptionalKeyedService<ITestService>("nonExistentKey");
+        var service = container.GetKeyedService<ITestService>("nonExistentKey");
 
         // Assert
         Assert.Null(service);
@@ -169,9 +169,9 @@ public class KeyedServiceTests
         container.RegisterTransient<ITestService, TestService>(key2);
 
         // Act
-        var service1a = container.GetKeyedService<ITestService>(key1);
-        var service1b = container.GetKeyedService<ITestService>(key1);
-        var service2a = container.GetKeyedService<ITestService>(key2);
+        var service1a = container.GetRequiredKeyedService<ITestService>(key1);
+        var service1b = container.GetRequiredKeyedService<ITestService>(key1);
+        var service2a = container.GetRequiredKeyedService<ITestService>(key2);
 
         // Assert
         Assert.NotSame(service1a, service1b); // Different instances for same key
@@ -191,8 +191,8 @@ public class KeyedServiceTests
         ITestService scopedService1, scopedService2;
         using (var scope = container.CreateScope())
         {
-            scopedService1 = scope.ServiceFactory.GetKeyedService<ITestService>(serviceKey);
-            scopedService2 = scope.ServiceFactory.GetKeyedService<ITestService>(serviceKey);
+            scopedService1 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
+            scopedService2 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
         }
 
         // Assert
@@ -209,8 +209,8 @@ public class KeyedServiceTests
         container.RegisterTransient<IKeyedService, KeyedServiceB>("keyB");
 
         // Act
-        var serviceA = container.GetKeyedService<IKeyedService>("keyA");
-        var serviceB = container.GetKeyedService<IKeyedService>("keyB");
+        var serviceA = container.GetRequiredKeyedService<IKeyedService>("keyA");
+        var serviceB = container.GetRequiredKeyedService<IKeyedService>("keyB");
 
         // Assert
         Assert.IsType<KeyedServiceA>(serviceA);
@@ -244,8 +244,8 @@ public class KeyedServiceTests
 
         // Act
         container.RegisterSingleton<ITestService>(service, null);
-        var resolvedByDefault = container.GetService<ITestService>();
-        var resolvedByNullKey = container.GetKeyedService<ITestService>(null);
+        var resolvedByDefault = container.GetRequiredService<ITestService>();
+        var resolvedByNullKey = container.GetRequiredKeyedService<ITestService>(null);
 
         // Assert
         Assert.Same(service, resolvedByDefault);
