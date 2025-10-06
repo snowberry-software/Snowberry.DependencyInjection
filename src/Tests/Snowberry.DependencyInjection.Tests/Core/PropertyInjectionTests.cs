@@ -1,4 +1,3 @@
-using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
@@ -38,7 +37,7 @@ public class PropertyInjectionTests
         using var container = new ServiceContainer();
         var constructorService = new TestService { Name = "ConstructorService" };
         var optionalService = new AlternativeTestService { Name = "OptionalService" };
-        
+
         container.RegisterSingleton<ITestService>(constructorService);
         container.RegisterSingleton<PropertyInjectionService>();
 

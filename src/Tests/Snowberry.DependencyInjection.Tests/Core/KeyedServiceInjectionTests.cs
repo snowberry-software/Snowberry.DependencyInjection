@@ -44,8 +44,7 @@ public class KeyedServiceInjectionTests
         container.RegisterSingleton<KeyedConstructorInjectionService>();
 
         // Act & Assert
-        Assert.Throws<ServiceTypeNotRegistered>(() =>
-            container.GetRequiredService<KeyedConstructorInjectionService>());
+        Assert.Throws<ServiceTypeNotRegistered>(container.GetRequiredService<KeyedConstructorInjectionService>);
     }
 
     [Fact]

@@ -3,11 +3,11 @@ namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 /// <summary>
 /// Represents an inversion of control container.
 /// </summary>
-public interface IServiceContainer : 
-    IServiceRegistry, 
-    IServiceFactory, 
-    IServiceDescriptorReceiver, 
-    IDisposableContainer, 
+public interface IServiceContainer :
+    IServiceRegistry,
+    IServiceFactory,
+    IServiceDescriptorReceiver,
+    IDisposableContainer,
     IDisposable
 {
     /// <summary>
