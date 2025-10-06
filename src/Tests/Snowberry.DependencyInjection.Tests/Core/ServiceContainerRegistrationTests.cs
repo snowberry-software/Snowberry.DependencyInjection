@@ -132,7 +132,7 @@ public class ServiceContainerRegistrationTests
         }
 
         // Act
-        bool result = container.TryAdd(new ServiceDescriptor(
+        bool result = container.TryRegister(new ServiceDescriptor(
             typeof(ITestService),
             typeof(TestService),
             ServiceLifetime.Singleton));

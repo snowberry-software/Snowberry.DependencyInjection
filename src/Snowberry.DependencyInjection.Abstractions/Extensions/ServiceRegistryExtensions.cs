@@ -15,7 +15,7 @@ public static class ServiceRegistryExtensions
     /// <param name="serviceKey">The optional key to associate with the service registration.</param>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="serviceDescriptor"/> is null.</exception>
-    public static bool TryAdd(this IServiceRegistry serviceRegistry, IServiceDescriptor serviceDescriptor, object? serviceKey = null)
+    public static bool TryRegister(this IServiceRegistry serviceRegistry, IServiceDescriptor serviceDescriptor, object? serviceKey = null)
     {
         if (serviceRegistry.IsServiceRegistered(serviceDescriptor.ServiceType, serviceKey: serviceKey))
             return false;

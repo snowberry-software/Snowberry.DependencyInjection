@@ -49,15 +49,15 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 serviceContainer.RegisterTransient<ITestService, TestServiceKeyedA>("_KEY0_");
 
 // The current scope in this case would be the container itself, means it will be disposed by the container.
-_ = serviceContainer.GetService<IScopedType>();
-_ = serviceContainer.GetService<ITransientType>();
-_ = serviceContainer.GetKeyedService<ITestService>("_KEY0_");
+_ = serviceContainer.GetRequiredService<IScopedType>();
+_ = serviceContainer.GetRequiredService<ITransientType>();
+_ = serviceContainer.GetRequiredKeyedService<ITestService>("_KEY0_");
 
 using(var scope = serviceContainer.CreateScope())
 {
     // The instance was created for current scope, the instance will be disposed by the scope.
-    _ = scope.ServiceFactory.GetService<IScopedType>();
-    _ = scope.ServiceFactory.GetService<ITransientType>();
+    _ = scope.ServiceFactory.GetRequiredService<IScopedType>();
+    _ = scope.ServiceFactory.GetRequiredService<ITransientType>();
 }
 
 // Dispose container
