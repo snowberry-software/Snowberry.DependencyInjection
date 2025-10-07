@@ -126,13 +126,8 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithThrowingConstructor>();
 
         // Act & Assert
-        // Activator.CreateInstance wraps constructor exceptions in TargetInvocationException
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
-
-        // The actual constructor exception should be in InnerException
-        Assert.NotNull(exception.InnerException);
-        Assert.IsType<InvalidOperationException>(exception.InnerException);
-        Assert.Equal("Constructor exception", exception.InnerException.Message);
+        var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
+        Assert.Equal("Constructor exception", exception.Message);
     }
 
     [Fact]
@@ -143,11 +138,8 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithArgumentExceptionConstructor>();
 
         // Act & Assert
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithArgumentExceptionConstructor>);
-
-        Assert.NotNull(exception.InnerException);
-        Assert.IsType<ArgumentException>(exception.InnerException);
-        Assert.Equal("Invalid argument in constructor", exception.InnerException.Message);
+        var exception = Assert.Throws<ArgumentException>(container.GetRequiredService<ServiceWithArgumentExceptionConstructor>);
+        Assert.Equal("Invalid argument in constructor", exception.Message);
     }
 
     [Fact]
@@ -158,11 +150,9 @@ public class ErrorHandlingAndEdgeCaseTests
         container.RegisterSingleton<ServiceWithNullReferenceConstructor>();
 
         // Act & Assert
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithNullReferenceConstructor>);
+        var exception = Assert.Throws<NullReferenceException>(container.GetRequiredService<ServiceWithNullReferenceConstructor>);
 
-        Assert.NotNull(exception.InnerException);
-        Assert.IsType<NullReferenceException>(exception.InnerException);
-        Assert.Equal("Null reference in constructor", exception.InnerException.Message);
+        Assert.Equal("Null reference in constructor", exception.Message);
     }
 
     [Fact]
@@ -177,11 +167,9 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         // The exception should propagate up from the dependency
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceDependentOnThrowingService>);
+        var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ServiceDependentOnThrowingService>);
 
-        Assert.NotNull(exception.InnerException);
-        Assert.IsType<InvalidOperationException>(exception.InnerException);
-        Assert.Equal("Constructor exception", exception.InnerException.Message);
+        Assert.Equal("Constructor exception", exception.Message);
     }
 
     [Fact]
@@ -212,11 +200,9 @@ public class ErrorHandlingAndEdgeCaseTests
         // Should throw the same wrapped exception each time for transient services
         for (int i = 0; i < 3; i++)
         {
-            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
+            var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
 
-            Assert.NotNull(exception.InnerException);
-            Assert.IsType<InvalidOperationException>(exception.InnerException);
-            Assert.Equal("Constructor exception", exception.InnerException.Message);
+            Assert.Equal("Constructor exception", exception.Message);
         }
 
         // No services should be created due to constructor exceptions
@@ -234,10 +220,10 @@ public class ErrorHandlingAndEdgeCaseTests
         // Should throw the same exception consistently for singleton services
         for (int i = 0; i < 3; i++)
         {
-            var exception = Assert.Throws<System.Reflection.TargetInvocationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
+            var exception = Assert.Throws<InvalidOperationException>(container.GetRequiredService<ServiceWithThrowingConstructor>);
 
-            Assert.NotNull(exception.InnerException);
-            Assert.Equal("Constructor exception", exception.InnerException.Message);
+            Assert.NotNull(exception);
+            Assert.Equal("Constructor exception", exception.Message);
         }
 
         Assert.Equal(0, container.DisposableCount);
@@ -253,10 +239,10 @@ public class ErrorHandlingAndEdgeCaseTests
         // Act & Assert
         using var scope = container.CreateScope();
 
-        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(scope.ServiceFactory.GetRequiredService<ServiceWithThrowingConstructor>);
+        var exception = Assert.Throws<InvalidOperationException>(scope.ServiceFactory.GetRequiredService<ServiceWithThrowingConstructor>);
 
-        Assert.NotNull(exception.InnerException);
-        Assert.Equal("Constructor exception", exception.InnerException.Message);
+        Assert.NotNull(exception);
+        Assert.Equal("Constructor exception", exception.Message);
         Assert.Equal(0, scope.DisposableCount);
     }
 

@@ -124,7 +124,7 @@ public class KeyedServiceTests
         container.RegisterSingleton<ITestService, TestService>("existingKey");
 
         // Act & Assert
-        Assert.Throws<Snowberry.DependencyInjection.Abstractions.Exceptions.ServiceTypeNotRegistered>(() =>
+        Assert.Throws<Abstractions.Exceptions.ServiceTypeNotRegistered>(() =>
             container.GetRequiredKeyedService<ITestService>("nonExistentKey"));
     }
 

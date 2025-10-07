@@ -22,7 +22,7 @@ public class AsyncTestService : IAsyncTestService
     {
         if (!IsDisposed)
         {
-            await Task.Delay(50); // Simulate async cleanup
+            //await Task.Delay(50); // Simulate async cleanup
             IsDisposed = true;
         }
     }
