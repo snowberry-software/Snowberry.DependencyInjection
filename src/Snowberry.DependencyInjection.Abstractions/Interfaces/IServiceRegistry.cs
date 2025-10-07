@@ -6,29 +6,6 @@ namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 public interface IServiceRegistry
 {
     /// <summary>
-    /// Registers the given service.
-    /// </summary>
-    /// <param name="serviceType">The service to register.</param>
-    /// <param name="implementationType">The implementation type of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <param name="lifetime">The lifetime of the service.</param>
-    /// <param name="singletonInstance">The optional singleton instance.</param>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
-    IServiceRegistry Register(Type serviceType, Type implementationType, object? serviceKey, ServiceLifetime lifetime, object? singletonInstance);
-
-    /// <summary>
-    /// Registers the given service.
-    /// </summary>
-    /// <param name="serviceType">The service to register.</param>
-    /// <param name="implementationType">The implementation type of the service.</param>
-    /// <param name="serviceKey">The optional service key.</param>
-    /// <param name="lifetime">The lifetime of the service.</param>
-    /// <param name="singletonInstance">The optional singleton instance.</param>
-    /// <param name="instanceFactory">The factory function that will be used to create the instance of the service.</param>
-    /// <returns>The current <see cref="IServiceRegistry"/> for chaining calls.</returns>
-    IServiceRegistry Register(Type serviceType, Type implementationType, object? serviceKey, ServiceLifetime lifetime, object? singletonInstance, ServiceInstanceFactory? instanceFactory);
-
-    /// <summary>
     /// Registers the given <paramref name="serviceDescriptor"/>.
     /// </summary>
     /// <param name="serviceDescriptor">The service descriptor.</param>

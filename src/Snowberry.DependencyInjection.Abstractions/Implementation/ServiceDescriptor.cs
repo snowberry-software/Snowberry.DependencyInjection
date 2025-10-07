@@ -1,7 +1,6 @@
-using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
-namespace Snowberry.DependencyInjection.Implementation;
+namespace Snowberry.DependencyInjection.Abstractions.Implementation;
 
 /// <inheritdoc cref="IServiceDescriptor"/>
 public class ServiceDescriptor : IServiceDescriptor

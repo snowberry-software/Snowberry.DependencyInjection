@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 
@@ -117,7 +118,7 @@ public class PerformanceAndScalabilityTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>), null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         var testTypes = new[]
         {

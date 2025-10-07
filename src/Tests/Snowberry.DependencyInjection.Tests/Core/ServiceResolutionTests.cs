@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
-using Snowberry.DependencyInjection.Implementation;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 
@@ -248,7 +248,7 @@ public class ServiceResolutionTests
 
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>), null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var stringRepo = container.GetRequiredService<IRepository<string>>();
@@ -269,7 +269,7 @@ public class ServiceResolutionTests
 
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>), null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var listRepo = container.GetRequiredService<IRepository<List<string>>>();

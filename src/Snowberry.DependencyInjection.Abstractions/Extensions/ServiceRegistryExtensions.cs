@@ -1,4 +1,5 @@
-﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Implementation;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Abstractions.Extensions;
 
@@ -17,6 +18,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="serviceDescriptor"/> is null.</exception>
     public static bool TryRegister(this IServiceRegistry serviceRegistry, IServiceDescriptor serviceDescriptor, object? serviceKey = null)
     {
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
+
         if (serviceRegistry.IsServiceRegistered(serviceDescriptor.ServiceType, serviceKey: serviceKey))
             return false;
 
@@ -34,13 +38,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Singleton(typeof(T), typeof(T), singletonInstance: null), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -54,13 +54,13 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Singleton(typeof(T), typeof(T), singletonInstance: null);
+        descriptor.InstanceFactory = instanceFactory;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -74,15 +74,10 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
     {
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
 
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: instance,
-            instanceFactory: null);
+        return serviceRegistry.Register(ServiceDescriptor.Singleton(typeof(T), typeof(T), singletonInstance: instance), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -96,13 +91,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Singleton(typeof(T), typeof(TImpl), singletonInstance: null), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -117,13 +108,13 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Singleton(typeof(T), typeof(TImpl), singletonInstance: null);
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -138,14 +129,10 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
     public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
     {
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
 
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            instance);
+        return serviceRegistry.Register(ServiceDescriptor.Singleton(typeof(T), typeof(TImpl), singletonInstance: instance), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -159,12 +146,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-           typeof(T),
-           typeof(T),
-           serviceKey,
-           ServiceLifetime.Transient,
-           null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Transient(typeof(T), typeof(T)), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -179,13 +163,13 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Transient(typeof(T), typeof(T));
+        descriptor.InstanceFactory = instanceFactory;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -200,12 +184,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Transient(typeof(T), typeof(TImpl)), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -221,13 +202,13 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Transient(typeof(T), typeof(TImpl));
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -241,12 +222,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Scoped(typeof(T), typeof(T)), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -261,13 +239,13 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Scoped(typeof(T), typeof(T));
+        descriptor.InstanceFactory = instanceFactory;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -282,12 +260,9 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+
+        return serviceRegistry.Register(ServiceDescriptor.Scoped(typeof(T), typeof(TImpl)), serviceKey: serviceKey);
     }
 
     /// <summary>
@@ -303,12 +278,12 @@ public static class ServiceRegistryExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
     public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
-        return serviceRegistry.Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
+        _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
+        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+
+        var descriptor = ServiceDescriptor.Scoped(typeof(T), typeof(TImpl));
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
+
+        return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
 }

@@ -30,51 +30,6 @@ public partial class ServiceContainer
     }
 
     /// <inheritdoc/>
-    public IServiceRegistry Register(
-        Type serviceType,
-        Type implementationType,
-        object? serviceKey,
-        ServiceLifetime lifetime,
-        object? singletonInstance)
-    {
-        return Register(
-            serviceType: serviceType,
-            implementationType: implementationType,
-            serviceKey: serviceKey,
-            lifetime: lifetime,
-            singletonInstance: singletonInstance,
-            instanceFactory: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry Register(
-        Type serviceType,
-        Type implementationType,
-        object? serviceKey,
-        ServiceLifetime lifetime,
-        object? singletonInstance,
-        ServiceInstanceFactory? instanceFactory)
-    {
-        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-        _ = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
-
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        var newDescriptor = lifetime switch
-        {
-            ServiceLifetime.Singleton => ServiceDescriptor.Singleton(serviceType, implementationType, singletonInstance),
-            ServiceLifetime.Scoped => ServiceDescriptor.Scoped(serviceType, implementationType),
-            ServiceLifetime.Transient => ServiceDescriptor.Transient(serviceType, implementationType),
-            _ => ThrowHelper.ThrowServiceLifetimeNotImplemented(lifetime) as IServiceDescriptor
-        };
-
-        newDescriptor!.InstanceFactory = instanceFactory;
-
-        return Register(newDescriptor, serviceKey: serviceKey);
-    }
-
-    /// <inheritdoc/>
     public IServiceRegistry Register(IServiceDescriptor serviceDescriptor, object? serviceKey = null)
     {
         _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
@@ -122,7 +77,7 @@ public partial class ServiceContainer
         try
         {
             if (_isDisposed)
-                throw new ObjectDisposedException(GetType().FullName);
+                throw new ObjectDisposedException(nameof(ServiceContainer));
 
             return UnregisterServiceInternal(serviceType, serviceKey, out successful);
         }
@@ -135,7 +90,7 @@ public partial class ServiceContainer
     /// <summary>
     /// Internal method to unregister service. Must be called within a write lock.
     /// </summary>
-    private IServiceRegistry UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
+    private ServiceContainer UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
     {
         if (AreRegisteredServicesReadOnly)
             throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");

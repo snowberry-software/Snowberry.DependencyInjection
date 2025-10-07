@@ -1,5 +1,6 @@
 using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
@@ -109,7 +110,7 @@ public class ScopedLifetimeTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(ITestService), typeof(TestService), null, lifetime, null);
+        container.Register(new ServiceDescriptor(typeof(ITestService), typeof(TestService), lifetime, singletonInstance: null));
 
         // Act
         ITestService service;

@@ -1,6 +1,7 @@
 using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 
@@ -56,7 +57,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            container.Register(typeof(ITestService), null!, null, ServiceLifetime.Singleton, null));
+            container.Register(ServiceDescriptor.Singleton(typeof(ITestService), null!, singletonInstance: null)));
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            container.Register(null!, typeof(TestService), null, ServiceLifetime.Singleton, null));
+            container.Register(ServiceDescriptor.Singleton(null!, typeof(TestService), singletonInstance: null)));
     }
 
     [Fact]
@@ -308,7 +309,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(ITestService), typeof(TestService), null, lifetime, null);
+        container.Register(new ServiceDescriptor(typeof(ITestService), typeof(TestService), lifetime, singletonInstance: null));
 
         // Act
         var service = container.GetRequiredService<ITestService>();

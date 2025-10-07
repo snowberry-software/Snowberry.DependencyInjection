@@ -1,5 +1,6 @@
 using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
 
@@ -16,8 +17,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var stringRepo1 = container.GetRequiredService<IRepository<string>>();
@@ -36,8 +36,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Scoped, null);
+        container.Register(ServiceDescriptor.Scoped(typeof(IRepository<>), typeof(Repository<>)));
 
         // Act
         var globalRepo = container.GetRequiredService<IRepository<string>>();
@@ -61,8 +60,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Transient, null);
+        container.Register(ServiceDescriptor.Transient(typeof(IRepository<>), typeof(Repository<>)));
 
         // Act
         var repo1 = container.GetRequiredService<IRepository<string>>();
@@ -80,10 +78,8 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IGenericProcessor<>), typeof(GenericProcessor<>),
-            null, ServiceLifetime.Transient, null);
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Transient(typeof(IGenericProcessor<>), typeof(GenericProcessor<>)));
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var processor1 = container.GetRequiredService<IGenericProcessor<string>>();
@@ -105,8 +101,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var repositoryType = typeof(IRepository<>).MakeGenericType(genericType);
@@ -122,10 +117,8 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IGenericProcessor<>), typeof(GenericProcessor<>),
-            null, ServiceLifetime.Singleton, null);
-        container.Register(typeof(IGenericProcessor<>), typeof(AlternativeProcessor<>),
-            "alternative", ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IGenericProcessor<>), typeof(GenericProcessor<>), singletonInstance: null));
+        container.Register(ServiceDescriptor.Singleton(typeof(IGenericProcessor<>), typeof(AlternativeProcessor<>), singletonInstance: null), serviceKey: "alternative");
 
         // Act
         var defaultProcessor = container.GetRequiredService<IGenericProcessor<string>>();
@@ -144,8 +137,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act & Assert - Test with complex generic types
         var listRepo = container.GetRequiredService<IRepository<List<int>>>();
@@ -166,10 +158,8 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
-        container.Register(typeof(IGenericProcessor<>), typeof(ComplexGenericService<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
+        container.Register(ServiceDescriptor.Singleton(typeof(IGenericProcessor<>), typeof(ComplexGenericService<>), singletonInstance: null));
 
         // Act
         var processor = container.GetRequiredService<IGenericProcessor<TestEntity>>();
@@ -188,8 +178,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var repositories = new List<IRepository<int>>();
@@ -212,8 +201,7 @@ public class OpenGenericServiceTests
 
         using (var container = new ServiceContainer())
         {
-            container.Register(typeof(IRepository<>), typeof(Repository<>),
-                null, ServiceLifetime.Transient, null);
+            container.Register(ServiceDescriptor.Transient(typeof(IRepository<>), typeof(Repository<>)));
 
             for (int i = 0; i < 3; i++)
             {
@@ -260,8 +248,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var nestedRepo = container.GetRequiredService<IRepository<List<string>>>();
@@ -276,8 +263,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Singleton, null);
+        container.Register(ServiceDescriptor.Singleton(typeof(IRepository<>), typeof(Repository<>), singletonInstance: null));
 
         // Act
         var stringRepo = container.GetRequiredService<IRepository<string>>(); // Reference type
@@ -298,8 +284,7 @@ public class OpenGenericServiceTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        container.Register(typeof(IRepository<>), typeof(Repository<>),
-            null, ServiceLifetime.Transient, null);
+        container.Register(ServiceDescriptor.Transient(typeof(IRepository<>), typeof(Repository<>)));
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
