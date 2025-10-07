@@ -1,4 +1,4 @@
-﻿using Snowberry.DependencyInjection.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 
@@ -7,19 +7,22 @@ public class Scope : IScope
     /// <inheritdoc/>
     public event EventHandler? OnDispose;
 
-    private bool _isDisposed;
+#if NET9_0_OR_GREATER
+    private readonly Lock _lock = new();
+#else
     private readonly object _lock = new();
+#endif
+
+    private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
     /// <summary>
     /// Creates a new scope.
     /// </summary>
     /// <remarks>The <see cref="SetServiceFactory(IServiceFactory)"/> must be called before using the <see cref="ServiceFactory"/> property.</remarks>
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public Scope()
     {
     }
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
     /// <summary>
     /// Disposes the core.
@@ -109,17 +112,22 @@ public class Scope : IScope
     /// <inheritdoc/>
     public void SetServiceFactory(IServiceFactory serviceFactory)
     {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(Scope));
+        _ = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
 
-        if (ServiceFactory != null)
-            throw new InvalidOperationException("The service factory is already set for the scope!");
+        lock (_lock)
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(Scope));
 
-        ServiceFactory = serviceFactory;
+            if (ServiceFactory != null)
+                throw new InvalidOperationException("The service factory is already set for the scope!");
+
+            ServiceFactory = serviceFactory;
+        }
     }
 
     /// <inheritdoc/>
-    public IServiceFactory ServiceFactory { get; private set; }
+    public IServiceFactory ServiceFactory { get; private set; } = null!;
 
     /// <inheritdoc/>
     public bool IsDisposed => _isDisposed;

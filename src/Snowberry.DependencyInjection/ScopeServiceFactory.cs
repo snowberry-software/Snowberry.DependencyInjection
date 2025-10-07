@@ -1,5 +1,5 @@
 ﻿using System.Reflection;
-using Snowberry.DependencyInjection.Interfaces;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection;
 
@@ -32,27 +32,9 @@ public sealed class ScopeServiceFactory : IServiceFactory
     }
 
     /// <inheritdoc/>
-    public object GetService(Type serviceType)
+    public object? GetService(Type serviceType)
     {
         return ServiceFactory.GetService(serviceType, Scope);
-    }
-
-    /// <inheritdoc/>
-    public T GetService<T>()
-    {
-        return ServiceFactory.GetService<T>(Scope);
-    }
-
-    /// <inheritdoc/>
-    public object? GetOptionalService(Type serviceType)
-    {
-        return ServiceFactory.GetOptionalService(serviceType, Scope);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalService<T>()
-    {
-        return ServiceFactory.GetOptionalService<T>(Scope);
     }
 
     /// <inheritdoc/>
@@ -62,27 +44,9 @@ public sealed class ScopeServiceFactory : IServiceFactory
     }
 
     /// <inheritdoc/>
-    public object GetKeyedService(Type serviceType, object? serviceKey)
+    public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
         return ServiceFactory.GetKeyedService(serviceType, serviceKey, Scope);
-    }
-
-    /// <inheritdoc/>
-    public object? GetOptionalKeyedService(Type serviceType, object? serviceKey)
-    {
-        return ServiceFactory.GetOptionalKeyedService(serviceType, serviceKey, Scope);
-    }
-
-    /// <inheritdoc/>
-    public T GetKeyedService<T>(object? serviceKey)
-    {
-        return ServiceFactory.GetKeyedService<T>(serviceKey, Scope);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalKeyedService<T>(object? serviceKey)
-    {
-        return ServiceFactory.GetOptionalKeyedService<T>(serviceKey, Scope);
     }
 
     /// <summary>

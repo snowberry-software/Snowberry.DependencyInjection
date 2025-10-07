@@ -1,4 +1,4 @@
-﻿using Snowberry.DependencyInjection.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection;
 
@@ -7,12 +7,14 @@ namespace Snowberry.DependencyInjection;
 /// </summary>
 internal class DisposableContainer : IDisposableContainer
 {
-    /// <summary>
-    /// Objects either implementing <see cref="IDisposable"/> or <see cref="IAsyncDisposable"/>.
-    /// </summary>
     private List<object>? _disposables;
     private bool _isDisposed;
-    private object _locker = new();
+
+#if NET9_0_OR_GREATER
+    private readonly Lock _lock = new();
+#else
+    private readonly object _lock = new();
+#endif
 
     /// <inheritdoc/>
     public void RegisterDisposable(IDisposable disposable)
@@ -59,7 +61,7 @@ internal class DisposableContainer : IDisposableContainer
         if (!hasAsyncDisposable && !hasDisposable)
             throw new InvalidOperationException($"`{disposable.GetType().FullName}` type does not implement IAsyncDisposable or IDisposable.");
 
-        lock (_locker)
+        lock (_lock)
         {
             if (_disposables == null)
             {
@@ -77,7 +79,7 @@ internal class DisposableContainer : IDisposableContainer
     /// <inheritdoc/>
     public void Dispose()
     {
-        lock (_locker)
+        lock (_lock)
         {
             if (IsDisposed)
                 return;
@@ -106,7 +108,7 @@ internal class DisposableContainer : IDisposableContainer
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
-        lock (_locker)
+        lock (_lock)
         {
             if (IsDisposed)
                 return default;
@@ -177,7 +179,7 @@ internal class DisposableContainer : IDisposableContainer
     {
         get
         {
-            lock (_locker)
+            lock (_lock)
             {
                 return _disposables?.Count ?? 0;
             }
@@ -191,7 +193,7 @@ internal class DisposableContainer : IDisposableContainer
     {
         get
         {
-            lock (_locker)
+            lock (_lock)
                 return _isDisposed;
         }
     }

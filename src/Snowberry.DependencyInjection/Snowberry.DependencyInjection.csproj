@@ -1,68 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>preview</LangVersion>
+	<PropertyGroup>
+		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
 
-        <Authors>Snowberry Software</Authors>
-        <Description>A lightweight easy to use IoC container for .NET.</Description>
+		<Description>A lightweight easy to use IoC container for .NET.</Description>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
 
-        <AssemblyVersion>3.8.0.0</AssemblyVersion>
-        <VersionPrefix>$(AssemblyVersion)</VersionPrefix>
+	<Import Project="..\NuGetPackage.props" />
 
-        <IsPackable>true</IsPackable>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageTags>ioc, dependency injection, lightweight, simple, easy</PackageTags>
-
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <IncludeBuildOutput>true</IncludeBuildOutput>
-        <Copyright>Copyright © 2025 Snowberry Software</Copyright>
-        <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
-        <PackageProjectUrl>https://github.com/snowberry-software/DependencyInjection</PackageProjectUrl>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-
-        <RepositoryType>git</RepositoryType>
-        <RepositoryUrl>https://github.com/snowberry-software/DependencyInjection.git</RepositoryUrl>
-    </PropertyGroup>
-
-    <PropertyGroup>
-        <!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-
-        <!-- Embed source files that are not tracked by the source control manager in the PDB -->
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-
-        <!-- Recommended: Embed symbols containing Source Link in the main file (exe/dll) -->
-        <DebugType>embedded</DebugType>
-    </PropertyGroup>
-
-    <!-- Deterministic Builds -->
-    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(TF_BUILD)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <!--<Content
+	<ItemGroup>
+		<!--<Content
         Include="$(OutputPath)\$(AssemblyName).dll">
 			<Pack>True</Pack>
 			<PackagePath>lib\$(TargetFramework)</PackagePath>
 		</Content>-->
 
-        <None Include="..\..\README.md">
-            <Pack>True</Pack>
-            <PackagePath>\</PackagePath>
-        </None>
-    </ItemGroup>
+		<None Include="..\..\README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
-    <!-- SourceLink -->
-    <ItemGroup>
-        <!-- For GitHub -->
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-    </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="System.Memory" Version="4.6.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Snowberry.DependencyInjection.Abstractions\Snowberry.DependencyInjection.Abstractions.csproj" />
+	</ItemGroup>
 </Project>

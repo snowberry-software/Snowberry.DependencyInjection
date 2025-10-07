@@ -1,8 +1,9 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Reflection;
-using Snowberry.DependencyInjection.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Implementation;
-using Snowberry.DependencyInjection.Interfaces;
 using Snowberry.DependencyInjection.Lookup;
 
 namespace Snowberry.DependencyInjection;
@@ -10,8 +11,8 @@ namespace Snowberry.DependencyInjection;
 public partial class ServiceContainer : IServiceContainer
 {
     private ConcurrentDictionary<IServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = [];
-    private readonly object _lock = new();
-    private bool _isDisposed;
+    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
+    private volatile bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
     /// <summary>
@@ -53,14 +54,22 @@ public partial class ServiceContainer : IServiceContainer
     /// <returns>Whether the core is already disposed.</returns>
     private bool DisposeCore()
     {
-        lock (_lock)
+        if (_isDisposed)
+            return true;
+
+        _lock.EnterWriteLock();
+        try
         {
-            if (IsDisposed)
+            if (_isDisposed)
                 return true;
 
             _isDisposed = true;
             ServiceFactory.NotifyScopeDisposed(null);
             return false;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
         }
     }
 
@@ -69,23 +78,45 @@ public partial class ServiceContainer : IServiceContainer
     {
         GC.SuppressFinalize(this);
 
-        lock (_lock)
-        {
-            if (DisposeCore())
-                return;
+        if (DisposeCore())
+            return;
 
+        _lock.EnterWriteLock();
+        try
+        {
             _disposableContainer.Dispose();
         }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+
+        _lock.Dispose();
     }
 
 #if NETCOREAPP
     /// <inheritdoc/>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
 
-        DisposeCore();
-        return _disposableContainer.DisposeAsync();
+        if (DisposeCore())
+            return;
+
+        ValueTask disposeTask;
+        _lock.EnterWriteLock();
+        try
+        {
+            disposeTask = _disposableContainer.DisposeAsync();
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+
+        await disposeTask.ConfigureAwait(false);
+
+        _lock.Dispose();
     }
 #endif
 
@@ -108,47 +139,82 @@ public partial class ServiceContainer : IServiceContainer
     {
         _ = disposable ?? throw new ArgumentNullException(nameof(disposable));
 
-        lock (_lock)
+        _lock.EnterWriteLock();
+        try
         {
-            if (IsDisposed)
+            if (_isDisposed)
                 throw new ObjectDisposedException(nameof(ServiceContainer));
 
             _disposableContainer.RegisterDisposable(disposable);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
         }
     }
 
     /// <inheritdoc/>
     public IServiceDescriptor? GetOptionalServiceDescriptor(Type serviceType, object? serviceKey)
     {
-        lock (_lock)
+        // Fast path: try to read without any locking first (using ConcurrentDictionary's thread safety)
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+
+        if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var serviceDescriptor))
         {
-            if (IsDisposed)
+            if (_isDisposed)
                 throw new ObjectDisposedException(nameof(ServiceContainer));
 
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+            return serviceDescriptor;
+        }
 
-            if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var serviceDescriptor))
+        // If not found and it's not a generic type, return null without locking
+        if (serviceType.GenericTypeArguments.Length == 0)
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(nameof(ServiceContainer));
+
+            return null;
+        }
+
+        // For generic types, we need to check for open generic registrations and potentially create new descriptors
+        _lock.EnterUpgradeableReadLock();
+        try
+        {
+            if (_isDisposed)
+                throw new ObjectDisposedException(nameof(ServiceContainer));
+
+            // Double-check if the service was registered while we were waiting for the lock
+            if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out serviceDescriptor))
                 return serviceDescriptor;
-
-            if (serviceType.GenericTypeArguments.Length == 0)
-                return null;
 
             var genericType = serviceType.GetGenericTypeDefinition();
             var genericServiceIdentifier = new ServiceIdentifier(genericType, serviceKey);
 
-            // NOTE(VNC):
-            //
-            // If we find the generic service, we can create a new service descriptor for the specific service type.
-            //
+            // Check if we have an open generic registration
             if (_serviceDescriptorMapping.TryGetValue(genericServiceIdentifier, out serviceDescriptor))
             {
-                var newServiceDescriptor = serviceDescriptor.CloneFor(serviceType);
-                _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newServiceDescriptor, (_, _) => newServiceDescriptor);
+                _lock.EnterWriteLock();
+                try
+                {
+                    // Triple-check after acquiring write lock (other thread might have added it)
+                    if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var existingDescriptor))
+                        return existingDescriptor;
 
-                return newServiceDescriptor;
+                    var newServiceDescriptor = serviceDescriptor.CloneFor(serviceType);
+                    _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newServiceDescriptor, (_, _) => newServiceDescriptor);
+                    return newServiceDescriptor;
+                }
+                finally
+                {
+                    _lock.ExitWriteLock();
+                }
             }
 
             return null;
+        }
+        finally
+        {
+            _lock.ExitUpgradeableReadLock();
         }
     }
 
@@ -157,7 +223,7 @@ public partial class ServiceContainer : IServiceContainer
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         var descriptor = GetOptionalServiceDescriptor(serviceType, serviceKey);
@@ -168,7 +234,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public IServiceDescriptor GetServiceDescriptor<T>(object? serviceKey)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return GetServiceDescriptor(typeof(T), serviceKey);
@@ -177,7 +243,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public IServiceDescriptor? GetOptionalServiceDescriptor<T>(object? serviceKey)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return GetOptionalServiceDescriptor(typeof(T), serviceKey);
@@ -186,7 +252,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return ServiceFactory.CreateInstance(type, genericTypeParameters);
@@ -195,7 +261,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public T CreateInstance<T>(Type[]? genericTypeParameters = null)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return ServiceFactory.CreateInstance<T>(genericTypeParameters);
@@ -204,7 +270,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public IScope CreateScope()
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         var scope = new Scope();
@@ -214,75 +280,21 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public object? GetOptionalService(Type serviceType)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalService(serviceType);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalService<T>()
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalService<T>();
-    }
-
-    /// <inheritdoc/>
-    public T GetService<T>()
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetService<T>();
-    }
-
-    /// <inheritdoc/>
     public object? GetService(Type serviceType)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return ServiceFactory.GetService(serviceType);
     }
 
     /// <inheritdoc/>
-    public object GetKeyedService(Type serviceType, object? serviceKey)
+    public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return ServiceFactory.GetKeyedService(serviceType, serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public object? GetOptionalKeyedService(Type serviceType, object? serviceKey)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalKeyedService(serviceType, serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public T GetKeyedService<T>(object? serviceKey)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetKeyedService<T>(serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public T? GetOptionalKeyedService<T>(object? serviceKey)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.GetOptionalKeyedService<T>(serviceKey);
     }
 
     /// <inheritdoc/>
@@ -299,10 +311,35 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public IServiceDescriptor[] GetServiceDescriptors()
     {
-        lock (_lock)
+        _lock.EnterReadLock();
+        try
         {
             return [.. _serviceDescriptorMapping.Values];
         }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <inheritdoc/>
+    public IEnumerator<IServiceDescriptor> GetEnumerator()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return _serviceDescriptorMapping.Values.GetEnumerator();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <inheritdoc/>
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 
     /// <inheritdoc/>
@@ -310,9 +347,14 @@ public partial class ServiceContainer : IServiceContainer
     {
         get
         {
-            lock (_lock)
+            _lock.EnterReadLock();
+            try
             {
                 return _serviceDescriptorMapping.Count;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
     }
@@ -322,9 +364,14 @@ public partial class ServiceContainer : IServiceContainer
     {
         get
         {
-            lock (_lock)
+            _lock.EnterReadLock();
+            try
             {
                 return _disposableContainer.DisposableCount;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
     }

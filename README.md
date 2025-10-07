@@ -12,7 +12,7 @@ var serviceContainer = new ServiceContainer();
 
 // Provided instances won't be disposed by the container.
 var providedSingletonInstance = new SomeType();
-serviceContainer.RegisterSingleton<ISomeType>(providedSingletonInstance);
+serviceContainer.RegisterSingleton<ISomeType>(instance: providedSingletonInstance);
 
 // The instance created by the container will be disposed by the container.
 serviceContainer.RegisterSingleton<ISomeOtherType, SomeOtherType>();
@@ -20,12 +20,15 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 
 // Dispose container
 serviceContainer.Dispose();
+
+// Or
+serviceContainer.DisposeAsync()
 ```
 
-Registered services can be overwritten
+Existing registered services can be overwritten, if the `ServiceContainer` is not created with the `ServiceContainerOptions.ReadOnly` option.
 
 ```cs
-...
+var serviceContainer = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
 
 serviceContainer.RegisterTransient<ITransientType, TransientType>();
 
@@ -34,12 +37,6 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 serviceContainer.RegisterSingleton<ITransientType, NewTransientType>();
 
 ...
-```
-
-This behavior can be disabled by using the `ServiceContainerOptions` and creating the `ServiceContainer` like this
-
-```cs
-var serviceContainer = new ServiceContainer(ServiceContainerOptions.ReadOnly);
 ```
 
 ## Scopes
@@ -52,15 +49,15 @@ serviceContainer.RegisterTransient<ITransientType, TransientType>();
 serviceContainer.RegisterTransient<ITestService, TestServiceKeyedA>("_KEY0_");
 
 // The current scope in this case would be the container itself, means it will be disposed by the container.
-_ = serviceContainer.GetService<IScopedType>();
-_ = serviceContainer.GetService<ITransientType>();
-_ = serviceContainer.GetKeyedService<ITestService>("_KEY0_");
+_ = serviceContainer.GetRequiredService<IScopedType>();
+_ = serviceContainer.GetRequiredService<ITransientType>();
+_ = serviceContainer.GetRequiredKeyedService<ITestService>("_KEY0_");
 
 using(var scope = serviceContainer.CreateScope())
 {
     // The instance was created for current scope, the instance will be disposed by the scope.
-    _ = scope.ServiceFactory.GetService<IScopedType>();
-    _ = scope.ServiceFactory.GetService<ITransientType>();
+    _ = scope.ServiceFactory.GetRequiredService<IScopedType>();
+    _ = scope.ServiceFactory.GetRequiredService<ITransientType>();
 }
 
 // Dispose container

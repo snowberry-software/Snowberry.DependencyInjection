@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+
+		<Description>The core abstractions for `Snowberry.DependencyInjection`.</Description>
+	</PropertyGroup>
+
+	<Import Project="..\NuGetPackage.props" />
+</Project>

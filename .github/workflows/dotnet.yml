@@ -11,43 +11,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./src
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: | 
             8.x
             9.x
-      - name: Restore dependencies
-        run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore
+        run: ./build.sh Compile
       - name: Test
-        run: dotnet test -f net8.0 --no-build --verbosity normal
+        run: ./build.sh Test
 
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./src
+    env:
+      NUGET_KEY: ${{ secrets.NUGET_KEY }}
     needs: build
     # Publish for a tag starting with v.
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: | 
+          dotnet-version: |
             8.x
             9.x
-      - name: Restore dependencies
-        run: dotnet restore
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
       - name: Deploy
-        run: dotnet nuget push "Snowberry.DependencyInjection/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+        run: ./build.sh DeployNuGet -Configuration Release -NuGetPackageFilter Snowberry.DependencyInjection.*.nupkg

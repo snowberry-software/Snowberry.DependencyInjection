@@ -1,6 +1,7 @@
-﻿using Snowberry.DependencyInjection.Helper;
+﻿using Snowberry.DependencyInjection.Abstractions;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Implementation;
-using Snowberry.DependencyInjection.Interfaces;
 
 namespace Snowberry.DependencyInjection;
 
@@ -11,298 +12,54 @@ public partial class ServiceContainer
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
-        lock (_lock)
-        {
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
-            return _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
-        }
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+        return _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
     }
 
     /// <inheritdoc/>
     public bool IsServiceRegistered<T>(object? serviceKey)
     {
-        if (IsDisposed)
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
         return IsServiceRegistered(typeof(T), serviceKey);
     }
 
     /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T>(ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public IServiceRegistry Register(IServiceDescriptor serviceDescriptor, object? serviceKey = null)
     {
-        if (IsDisposed)
+        _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
+
+        if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
 
-        _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
+        if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.Lifetime != ServiceLifetime.Singleton)
+            throw new ArgumentException("Singleton can't be used in non-singleton lifetime!", nameof(serviceDescriptor));
 
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
-    }
+        if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.InstanceFactory != null)
+            throw new ArgumentException("Singleton instance and instance factory can't be used together!", nameof(serviceDescriptor));
 
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T>(object? serviceKey = null)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T>(T instance, object? serviceKey = null)
-    {
-        _ = instance ?? throw new ArgumentNullException(nameof(instance));
-
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: instance,
-            instanceFactory: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T, TImpl>(object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterSingleton<T, TImpl>(TImpl instance, object? serviceKey = null) where TImpl : T
-    {
-        _ = instance ?? throw new ArgumentNullException(nameof(instance));
-
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Singleton,
-            instance);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterTransient<T>(object? serviceKey = null)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Transient,
-            null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterTransient<T>(ServiceInstanceFactory instanceFactory, object? serviceKey = null)
-    {
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterTransient<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterTransient<T, TImpl>(object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Transient,
-            singletonInstance: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterScoped<T>(object? serviceKey = null)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterScoped<T>(ServiceInstanceFactory instanceFactory, object? serviceKey = null)
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(T),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null,
-            instanceFactory: instanceFactory);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterScoped<T, TImpl>(ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null,
-            instanceFactory: (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry RegisterScoped<T, TImpl>(object? serviceKey = null) where TImpl : T
-    {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return Register(
-            typeof(T),
-            typeof(TImpl),
-            serviceKey,
-            ServiceLifetime.Scoped,
-            singletonInstance: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry Register(
-        Type serviceType,
-        Type implementationType,
-        object? serviceKey,
-        ServiceLifetime lifetime,
-        object? singletonInstance)
-    {
-        return Register(
-            serviceType: serviceType,
-            implementationType: implementationType,
-            serviceKey: serviceKey,
-            lifetime: lifetime,
-            singletonInstance: singletonInstance,
-            instanceFactory: null);
-    }
-
-    /// <inheritdoc/>
-    public IServiceRegistry Register(
-        Type serviceType,
-        Type implementationType,
-        object? serviceKey,
-        ServiceLifetime lifetime,
-        object? singletonInstance,
-        ServiceInstanceFactory? instanceFactory)
-    {
-        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-        _ = implementationType ?? throw new ArgumentNullException(nameof(implementationType));
-
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        if (singletonInstance != null && lifetime != ServiceLifetime.Singleton)
-            throw new ArgumentException("Singleton can't be used in non-singleton lifetime!", nameof(singletonInstance));
-
-        if (singletonInstance != null && instanceFactory != null)
-            throw new ArgumentException("Singleton instance and instance factory can't be used together!", nameof(singletonInstance));
-
-        lock (_lock)
+        _lock.EnterWriteLock();
+        try
         {
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+            var serviceIdentifier = new ServiceIdentifier(serviceDescriptor.ServiceType, serviceKey);
             bool foundExistingServiceDescriptor = _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
 
-            var newDescriptor = lifetime switch
-            {
-                ServiceLifetime.Singleton => ServiceDescriptor.Singleton(serviceType, implementationType, singletonInstance),
-                ServiceLifetime.Scoped => ServiceDescriptor.Scoped(serviceType, implementationType),
-                ServiceLifetime.Transient => ServiceDescriptor.Transient(serviceType, implementationType),
-                _ => ThrowHelper.ThrowServiceLifetimeNotImplemented(lifetime) as IServiceDescriptor
-            };
+            if (foundExistingServiceDescriptor && AreRegisteredServicesReadOnly)
+                throw new ServiceRegistryReadOnlyException($"Service type '{serviceDescriptor.ServiceType.FullName}' is already registered!");
 
-            newDescriptor!.InstanceFactory = instanceFactory;
+            if (foundExistingServiceDescriptor)
+                UnregisterServiceInternal(serviceDescriptor.ServiceType, serviceKey, out _);
 
-            if (!foundExistingServiceDescriptor)
-            {
-                _serviceDescriptorMapping.TryAdd(serviceIdentifier, newDescriptor!);
-                return this;
-            }
-
-            if (AreRegisteredServicesReadOnly)
-                throw new InvalidOperationException($"Service type '{serviceType.FullName}' is already registered!");
-
-            UnregisterService(serviceType, serviceKey, out _);
-            _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newDescriptor!, (_, _) => newDescriptor!);
+            _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
             return this;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
         }
     }
 
@@ -315,24 +72,40 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public IServiceRegistry UnregisterService(Type serviceType, object? serviceKey, out bool successful)
     {
-        if (IsDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        lock (_lock)
+        _lock.EnterWriteLock();
+        try
         {
-            var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+            if (_isDisposed)
+                throw new ObjectDisposedException(nameof(ServiceContainer));
 
-            if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))
+            return UnregisterServiceInternal(serviceType, serviceKey, out successful);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Internal method to unregister service. Must be called within a write lock.
+    /// </summary>
+    private ServiceContainer UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
+    {
+        if (AreRegisteredServicesReadOnly)
+            throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
+
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+
+        if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))
+        {
+            if (serviceDescriptor.Lifetime is ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance is IDisposable disposableSingleton)
             {
-                if (serviceDescriptor.Lifetime is ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance is IDisposable disposableSingleton)
-                {
-                    _disposableContainer.Remove(disposableSingleton);
-                    disposableSingleton.Dispose();
-                }
-
-                successful = true;
-                return this;
+                _disposableContainer.Remove(disposableSingleton);
+                disposableSingleton.Dispose();
             }
+
+            successful = true;
+            return this;
         }
 
         successful = false;

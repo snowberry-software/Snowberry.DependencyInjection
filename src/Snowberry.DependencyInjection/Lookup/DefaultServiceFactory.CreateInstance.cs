@@ -1,13 +1,17 @@
-﻿using System.Reflection;
-using Snowberry.DependencyInjection.Attributes;
-using Snowberry.DependencyInjection.Exceptions;
-using Snowberry.DependencyInjection.Helper;
-using Snowberry.DependencyInjection.Interfaces;
+﻿using System.Collections.Concurrent;
+using System.Linq.Expressions;
+using System.Reflection;
+using Snowberry.DependencyInjection.Abstractions.Attributes;
+using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Helper;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Lookup;
 
 public partial class DefaultServiceFactory
 {
+    private static readonly ConcurrentDictionary<Type, TypeMetadata> _typeMetadataCache = new();
+
     /// <inheritdoc/>
     public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
     {
@@ -36,6 +40,84 @@ public partial class DefaultServiceFactory
 
     /// <inheritdoc/>
     public ConstructorInfo? GetConstructor(Type instanceType)
+    {
+        var metadata = GetTypeMetadata(instanceType);
+        return metadata.Constructor;
+    }
+
+    /// <summary>
+    /// Gets or creates comprehensive metadata for a type including constructor, parameters, and properties.
+    /// </summary>
+    private static TypeMetadata GetTypeMetadata(Type type)
+    {
+        return _typeMetadataCache.GetOrAdd(type, BuildTypeMetadata);
+    }
+
+    /// <summary>
+    /// Builds comprehensive metadata for a type.
+    /// </summary>
+    private static TypeMetadata BuildTypeMetadata(Type type)
+    {
+        // Find the best constructor
+        var constructor = SelectConstructor(type);
+
+        ConstructorInvokerInfo? constructorInfo = null;
+        if (constructor != null)
+        {
+            var parameters = constructor.GetParameters();
+
+            // Cache parameter metadata to avoid reflection on every instantiation
+            var parameterInfos = new ParameterCacheInfo[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i];
+                parameterInfos[i] = new ParameterCacheInfo(
+                    param.ParameterType,
+                    param.GetCustomAttribute<FromKeyedServicesAttribute>()?.ServiceKey
+                );
+            }
+
+            // Create parameter: object?[] args
+            var argsParameter = Expression.Parameter(typeof(object?[]), "args");
+
+            // Create expressions to extract and cast each argument from the array
+            var argumentExpressions = new Expression[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var paramType = parameters[i].ParameterType;
+
+                // args[i]
+                var arrayAccess = Expression.ArrayIndex(argsParameter, Expression.Constant(i));
+
+                // (ParameterType)args[i]
+                argumentExpressions[i] = Expression.Convert(arrayAccess, paramType);
+            }
+
+            // new T(arg0, arg1, ...)
+            var newExpression = Expression.New(constructor, argumentExpressions);
+
+            // Convert to object if needed
+            var convertExpression = Expression.Convert(newExpression, typeof(object));
+
+            // Compile: (object?[] args) => (object)new T((T0)args[0], (T1)args[1], ...)
+            var invoker = Expression.Lambda<Func<object?[], object>>(convertExpression, argsParameter).Compile();
+
+            constructorInfo = new ConstructorInvokerInfo(invoker, parameterInfos);
+        }
+
+        // Cache injectable properties
+        var injectableProperties = type.GetProperties()
+            .Where(p => p.SetMethod != null && p.GetCustomAttribute<InjectAttribute>() != null)
+            .Select(p => new PropertyCacheInfo(p))
+            .ToArray();
+
+        return new TypeMetadata(constructor, constructorInfo, injectableProperties);
+    }
+
+    /// <summary>
+    /// Selects the best constructor for a type.
+    /// </summary>
+    private static ConstructorInfo? SelectConstructor(Type instanceType)
     {
         var constructors = instanceType.GetConstructors();
 
@@ -73,57 +155,155 @@ public partial class DefaultServiceFactory
             type = type.MakeGenericType(genericTypeParameters);
         }
 
-        var constructor = GetConstructor(type);
+        var metadata = GetTypeMetadata(type);
 
-        if (constructor == null)
+        if (metadata.ConstructorInvoker == null)
         {
             if (type.IsValueType)
                 return CreateBuiltInType(type);
+
+            ThrowHelper.ThrowInvalidConstructor(type);
+            return null!;
         }
-        else
+
+        // Use cached parameter metadata - no reflection needed!
+        var parameters = metadata.ConstructorInvoker.Parameters;
+        object?[] args = new object?[parameters.Length];
+
+        for (int i = 0; i < parameters.Length; i++)
         {
-            object[] args = [.. constructor.GetParameters()
-                .Select(param =>
-                {
-                    object? serviceKey = null;
-                    var keyedServiceAttribute = param.GetCustomAttribute<FromKeyedServicesAttribute>();
+            var param = parameters[i];
+            args[i] = GetInstanceFromServiceType(param.ParameterType, scope, param.ServiceKey);
+        }
 
-                    if (keyedServiceAttribute != null)
-                        serviceKey = keyedServiceAttribute.ServiceKey;
+        // Use compiled expression invoker instead of reflection
+        object instance = metadata.ConstructorInvoker.Invoker(args);
 
-                    return GetInstanceFromServiceType(param.ParameterType, scope, serviceKey);
-                })];
+        // Inject properties using cached metadata
+        var properties = metadata.InjectableProperties;
+        for (int i = 0; i < properties.Length; i++)
+        {
+            var property = properties[i];
 
-            object? instance = constructor.Invoke(args);
+            object? propertyValue = null;
+            if (property.ServiceKey != null)
+                propertyValue = GetKeyedService(property.PropertyType, property.ServiceKey, scope);
+            else
+                propertyValue = GetService(property.PropertyType, scope);
 
-            var properties = type.GetProperties()
-                .Where(x => x.SetMethod != null);
+            if (property.IsRequired && propertyValue is null)
+                throw new ServiceTypeNotRegistered(property.PropertyType, $"The required service for the property `{property.PropertyName}` is not registered!");
 
-            foreach (var property in properties)
+            property.SetValue(instance, propertyValue);
+        }
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Comprehensive cached metadata for a type including constructor and property information.
+    /// </summary>
+    private sealed class TypeMetadata
+    {
+        public TypeMetadata(ConstructorInfo? constructor, ConstructorInvokerInfo? constructorInvoker, PropertyCacheInfo[] injectableProperties)
+        {
+            Constructor = constructor;
+            ConstructorInvoker = constructorInvoker;
+            InjectableProperties = injectableProperties;
+        }
+
+        public ConstructorInfo? Constructor { get; }
+
+        public ConstructorInvokerInfo? ConstructorInvoker { get; }
+
+        public PropertyCacheInfo[] InjectableProperties { get; }
+    }
+
+    /// <summary>
+    /// Cached information about a constructor including compiled invoker and parameter metadata.
+    /// </summary>
+    private sealed class ConstructorInvokerInfo(Func<object?[], object> invoker, ParameterCacheInfo[] parameters)
+    {
+        public Func<object?[], object> Invoker { get; } = invoker;
+
+        public ParameterCacheInfo[] Parameters { get; } = parameters;
+    }
+
+    /// <summary>
+    /// Cached metadata about a constructor parameter to avoid reflection on every instantiation.
+    /// </summary>
+    private sealed class ParameterCacheInfo(Type parameterType, object? serviceKey)
+    {
+        public Type ParameterType { get; } = parameterType;
+
+        public object? ServiceKey { get; } = serviceKey;
+    }
+
+    /// <summary>
+    /// Cached metadata about an injectable property including compiled setter.
+    /// </summary>
+    private sealed class PropertyCacheInfo
+    {
+        private readonly Action<object, object?> _compiledSetter;
+
+        public PropertyCacheInfo(PropertyInfo propertyInfo)
+        {
+            PropertyType = propertyInfo.PropertyType;
+            PropertyName = propertyInfo.Name;
+
+            var fromKeyedAttribute = propertyInfo.GetCustomAttribute<FromKeyedServicesAttribute>();
+            ServiceKey = fromKeyedAttribute?.ServiceKey;
+
+            var injectAttribute = propertyInfo.GetCustomAttribute<InjectAttribute>()
+                ?? throw new InvalidOperationException($"Property must have {nameof(InjectAttribute)}!");
+
+            IsRequired = injectAttribute.IsRequired;
+
+            _compiledSetter = CompilePropertySetter(propertyInfo);
+        }
+
+        private static Action<object, object?> CompilePropertySetter(PropertyInfo propertyInfo)
+        {
+            // Create parameters: (object instance, object? value)
+            var instanceParameter = Expression.Parameter(typeof(object), "instance");
+            var valueParameter = Expression.Parameter(typeof(object), "value");
+
+            // Cast instance to declaring type (always required)
+            var instanceCast = Expression.Convert(instanceParameter, propertyInfo.DeclaringType!);
+
+            // Cast value to property type
+            // Use TypeAs for reference types (handles null better), Convert for value types (required for unboxing)
+            Expression valueCast;
+            if (propertyInfo.PropertyType.IsValueType)
             {
-                var injectAttribute = property.GetCustomAttribute<InjectAttribute>();
-
-                if (injectAttribute == null)
-                    continue;
-
-                var keyedServiceAttribute = property.GetCustomAttribute<FromKeyedServicesAttribute>();
-
-                object? propertyValue = null;
-                if (keyedServiceAttribute != null)
-                    propertyValue = GetOptionalKeyedService(property.PropertyType, keyedServiceAttribute.ServiceKey, scope);
-                else
-                    propertyValue = GetOptionalService(property.PropertyType, scope);
-
-                if (injectAttribute.IsRequired && propertyValue is null)
-                    throw new ServiceTypeNotRegistered(property.PropertyType, $"The required service for the property `{property.Name}` is not registered!");
-
-                property.SetValue(instance, propertyValue);
+                // Value types need Convert for proper unboxing
+                valueCast = Expression.Convert(valueParameter, propertyInfo.PropertyType);
+            }
+            else
+            {
+                // Reference types can use TypeAs which is slightly more efficient
+                valueCast = Expression.TypeAs(valueParameter, propertyInfo.PropertyType);
             }
 
-            return instance;
+            // instance.Property = value
+            var propertyAccess = Expression.Property(instanceCast, propertyInfo);
+            var assignExpression = Expression.Assign(propertyAccess, valueCast);
+
+            // Compile: (object instance, object? value) => ((DeclaringType)instance).Property = (PropertyType)value
+            return Expression.Lambda<Action<object, object?>>(assignExpression, instanceParameter, valueParameter).Compile();
         }
 
-        ThrowHelper.ThrowInvalidConstructor(type);
-        return null!;
+        public void SetValue(object instance, object? value)
+        {
+            _compiledSetter(instance, value);
+        }
+
+        public Type PropertyType { get; }
+
+        public string PropertyName { get; }
+
+        public object? ServiceKey { get; }
+
+        public bool IsRequired { get; }
     }
 }
