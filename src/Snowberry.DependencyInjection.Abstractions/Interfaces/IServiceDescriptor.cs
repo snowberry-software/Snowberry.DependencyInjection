@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 /// <summary>
@@ -48,6 +50,9 @@ public interface IServiceDescriptor
     /// <summary>
     /// The type that represents the implementation of the service.
     /// </summary>
+    [DynamicallyAccessedMembers(
+        DynamicallyAccessedMemberTypes.PublicConstructors |
+        DynamicallyAccessedMemberTypes.PublicProperties)]
     Type ImplementationType { get; }
 
     /// <summary>

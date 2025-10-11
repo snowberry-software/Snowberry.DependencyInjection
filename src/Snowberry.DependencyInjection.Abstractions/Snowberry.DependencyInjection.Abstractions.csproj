@@ -5,9 +5,11 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
+		<IsAotCompatible>true</IsAotCompatible>
 
 		<Description>The core abstractions for `Snowberry.DependencyInjection`.</Description>
 	</PropertyGroup>
 
 	<Import Project="..\NuGetPackage.props" />
+	<Import Project="..\PolySharp.props" />
 </Project>

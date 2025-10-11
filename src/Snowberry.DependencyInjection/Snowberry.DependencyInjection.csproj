@@ -5,12 +5,14 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>preview</LangVersion>
+		<IsAotCompatible>true</IsAotCompatible>
 
 		<Description>A lightweight easy to use IoC container for .NET.</Description>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 
 	<Import Project="..\NuGetPackage.props" />
+	<Import Project="..\PolySharp.props" />
 
 	<ItemGroup>
 		<!--<Content
@@ -23,10 +25,6 @@
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="System.Memory" Version="4.6.3" />
 	</ItemGroup>
 
 	<ItemGroup>

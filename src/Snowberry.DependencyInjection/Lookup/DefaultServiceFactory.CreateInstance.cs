@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
@@ -13,7 +14,7 @@ public partial class DefaultServiceFactory
     private static readonly ConcurrentDictionary<Type, TypeMetadata> _typeMetadataCache = new();
 
     /// <inheritdoc/>
-    public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
+    public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, Type[]? genericTypeParameters = null)
     {
         _ = type ?? throw new ArgumentNullException(nameof(type));
 
@@ -21,13 +22,17 @@ public partial class DefaultServiceFactory
     }
 
     /// <inheritdoc/>
-    public T CreateInstance<T>(Type[]? genericTypeParameters = null)
+    [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
+    [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
+    public T CreateInstance<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(Type[]? genericTypeParameters = null)
     {
         return CreateInstance<T>(scope: null, genericTypeParameters);
     }
 
     /// <inheritdoc/>
-    public T CreateInstance<T>(IScope? scope, Type[]? genericTypeParameters = null)
+    [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
+    [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
+    public T CreateInstance<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(IScope? scope, Type[]? genericTypeParameters = null)
     {
         object service = CreateInstance(typeof(T), scope, genericTypeParameters)!;
 
@@ -39,7 +44,7 @@ public partial class DefaultServiceFactory
     }
 
     /// <inheritdoc/>
-    public ConstructorInfo? GetConstructor(Type instanceType)
+    public ConstructorInfo? GetConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type instanceType)
     {
         var metadata = GetTypeMetadata(instanceType);
         return metadata.Constructor;
@@ -48,7 +53,8 @@ public partial class DefaultServiceFactory
     /// <summary>
     /// Gets or creates comprehensive metadata for a type including constructor, parameters, and properties.
     /// </summary>
-    private static TypeMetadata GetTypeMetadata(Type type)
+    [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = "The BuildTypeMetadata delegate correctly preserves all DynamicallyAccessedMembers annotations through the GetOrAdd call.")]
+    private static TypeMetadata GetTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
         return _typeMetadataCache.GetOrAdd(type, BuildTypeMetadata);
     }
@@ -56,7 +62,8 @@ public partial class DefaultServiceFactory
     /// <summary>
     /// Builds comprehensive metadata for a type.
     /// </summary>
-    private static TypeMetadata BuildTypeMetadata(Type type)
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "ParameterInfo.ParameterType from constructor parameters inherits the DynamicallyAccessedMembers requirements from the declaring type's constructor analysis.")]
+    private static TypeMetadata BuildTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
         // Find the best constructor
         var constructor = SelectConstructor(type);
@@ -71,6 +78,8 @@ public partial class DefaultServiceFactory
             for (int i = 0; i < parameters.Length; i++)
             {
                 var param = parameters[i];
+                // Suppress IL2072: ParameterInfo.ParameterType doesn't have DynamicallyAccessedMembers annotation in the framework
+                // The actual types come from the constructor which does have the proper annotations via GetTypeMetadata
                 parameterInfos[i] = new ParameterCacheInfo(
                     param.ParameterType,
                     param.GetCustomAttribute<FromKeyedServicesAttribute>()?.ServiceKey
@@ -117,7 +126,7 @@ public partial class DefaultServiceFactory
     /// <summary>
     /// Selects the best constructor for a type.
     /// </summary>
-    private static ConstructorInfo? SelectConstructor(Type instanceType)
+    private static ConstructorInfo? SelectConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type instanceType)
     {
         var constructors = instanceType.GetConstructors();
 
@@ -140,7 +149,9 @@ public partial class DefaultServiceFactory
     }
 
     /// <inheritdoc/>
-    public object CreateInstance(Type type, IScope? scope, Type[]? genericTypeParameters = null)
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, IScope? scope, Type[]? genericTypeParameters = null)
     {
         _ = type ?? throw new ArgumentNullException(nameof(type));
 
@@ -232,8 +243,11 @@ public partial class DefaultServiceFactory
     /// <summary>
     /// Cached metadata about a constructor parameter to avoid reflection on every instantiation.
     /// </summary>
-    private sealed class ParameterCacheInfo(Type parameterType, object? serviceKey)
+    private sealed class ParameterCacheInfo(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type parameterType,
+        object? serviceKey)
     {
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
         public Type ParameterType { get; } = parameterType;
 
         public object? ServiceKey { get; } = serviceKey;

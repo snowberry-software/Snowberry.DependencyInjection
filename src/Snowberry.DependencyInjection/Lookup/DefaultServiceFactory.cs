@@ -1,4 +1,5 @@
-﻿using Snowberry.DependencyInjection.Abstractions;
+﻿using System.Diagnostics.CodeAnalysis;
+using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Helper;
@@ -105,7 +106,7 @@ public partial class DefaultServiceFactory : IScopedServiceFactory
         scope.OnDispose -= Scope_OnDispose;
     }
 
-    protected object GetInstanceFromServiceType(Type serviceType, IScope? scope, object? serviceKey)
+    protected object GetInstanceFromServiceType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type serviceType, IScope? scope, object? serviceKey)
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
@@ -117,7 +118,7 @@ public partial class DefaultServiceFactory : IScopedServiceFactory
         return GetInstanceFromDescriptor(descriptor, scope, serviceType, serviceKey);
     }
 
-    protected object CreateBuiltInType(Type type)
+    protected object CreateBuiltInType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type type)
     {
         var typeCode = Type.GetTypeCode(type);
         return typeCode switch

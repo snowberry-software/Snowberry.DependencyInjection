@@ -1,0 +1,24 @@
+<Project>
+
+    <PropertyGroup>
+        <PolySharpExcludeGeneratedTypes>*</PolySharpExcludeGeneratedTypes>
+        <PolySharpIncludeRuntimeSupportedAttributes>true</PolySharpIncludeRuntimeSupportedAttributes>
+
+        <PolySharpIncludeGeneratedTypes>
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute;
+            System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes;
+            System.Diagnostics.CodeAnalysis.DynamicDependencyAttribute;
+            System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessageAttribute;
+            System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute;
+            System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute;
+        </PolySharpIncludeGeneratedTypes>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="PolySharp" Version="1.15.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+</Project>

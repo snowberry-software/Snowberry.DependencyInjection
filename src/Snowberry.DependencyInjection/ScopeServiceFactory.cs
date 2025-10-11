@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection;
@@ -20,13 +21,15 @@ public sealed class ScopeServiceFactory : IServiceFactory
     }
 
     /// <inheritdoc/>
-    public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
+    public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, Type[]? genericTypeParameters = null)
     {
         return ServiceFactory.CreateInstance(type, Scope, genericTypeParameters);
     }
 
     /// <inheritdoc/>
-    public T CreateInstance<T>(Type[]? genericTypeParameters = null)
+    [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
+    [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
+    public T CreateInstance<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(Type[]? genericTypeParameters = null)
     {
         return ServiceFactory.CreateInstance<T>(Scope, genericTypeParameters);
     }
@@ -38,7 +41,7 @@ public sealed class ScopeServiceFactory : IServiceFactory
     }
 
     /// <inheritdoc/>
-    public ConstructorInfo? GetConstructor(Type instanceType)
+    public ConstructorInfo? GetConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type instanceType)
     {
         return ServiceFactory.GetConstructor(instanceType);
     }

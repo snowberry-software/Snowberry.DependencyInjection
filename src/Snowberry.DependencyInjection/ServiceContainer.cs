@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
@@ -250,7 +251,7 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public object CreateInstance(Type type, Type[]? genericTypeParameters = null)
+    public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, Type[]? genericTypeParameters = null)
     {
         if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
@@ -259,7 +260,9 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public T CreateInstance<T>(Type[]? genericTypeParameters = null)
+    [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
+    [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
+    public T CreateInstance<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(Type[]? genericTypeParameters = null)
     {
         if (_isDisposed)
             throw new ObjectDisposedException(nameof(ServiceContainer));
@@ -298,7 +301,7 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
-    public ConstructorInfo? GetConstructor(Type instanceType)
+    public ConstructorInfo? GetConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type instanceType)
     {
         return ServiceFactory.GetConstructor(instanceType);
     }
