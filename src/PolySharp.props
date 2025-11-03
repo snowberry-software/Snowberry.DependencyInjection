@@ -1,7 +1,6 @@
 <Project>
 
     <PropertyGroup>
-        <PolySharpExcludeGeneratedTypes>*</PolySharpExcludeGeneratedTypes>
         <PolySharpIncludeRuntimeSupportedAttributes>true</PolySharpIncludeRuntimeSupportedAttributes>
 
         <PolySharpIncludeGeneratedTypes>

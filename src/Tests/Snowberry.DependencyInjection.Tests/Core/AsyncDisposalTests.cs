@@ -41,8 +41,8 @@ public class AsyncDisposalTests
         container.RegisterSingleton<IAsyncTestService, AsyncTestService>("async");
         container.RegisterSingleton<ITestService, TestService>("sync");
 
-        asyncService = container.GetKeyedService<IAsyncTestService>("async");
-        syncService = container.GetKeyedService<ITestService>("sync");
+        asyncService = container.GetRequiredKeyedService<IAsyncTestService>("async");
+        syncService = container.GetRequiredKeyedService<ITestService>("sync");
 
         asyncService.Name = "AsyncService";
         syncService.Name = "SyncService";
@@ -75,7 +75,7 @@ public class AsyncDisposalTests
         await using (var scope = container.CreateScope())
         {
             scopedService = scope.ServiceFactory.GetRequiredService<IAsyncTestService>();
-            scopedDependentService = scope.ServiceFactory.GetKeyedService<IAsyncTestService>("dependent");
+            scopedDependentService = scope.ServiceFactory.GetRequiredKeyedService<IAsyncTestService>("dependent");
 
             scopedService.Name = "Scoped";
 
@@ -99,7 +99,7 @@ public class AsyncDisposalTests
         {
             string key = $"key_{i}";
             container.RegisterSingleton<IAsyncTestService, AsyncTestService>(key);
-            var service = container.GetKeyedService<IAsyncTestService>(key);
+            var service = container.GetRequiredKeyedService<IAsyncTestService>(key);
             service.Name = $"Service_{i}";
             services.Add(service);
         }

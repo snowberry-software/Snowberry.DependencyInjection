@@ -5,8 +5,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
-		<IsAotCompatible>true</IsAotCompatible>
 
+		<IsAotCompatible>true</IsAotCompatible>
+		
 		<Description>The core abstractions for `Snowberry.DependencyInjection`.</Description>
 	</PropertyGroup>
 

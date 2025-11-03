@@ -226,7 +226,7 @@ public class PerformanceAndScalabilityTests
     }
 
     [Fact]
-    public void ConcurrentServiceResolution_WithHighLoad_ShouldPerformWell()
+    public async Task ConcurrentServiceResolution_WithHighLoad_ShouldPerformWell()
     {
         // Arrange
         using var container = new ServiceContainer();
@@ -252,7 +252,7 @@ public class PerformanceAndScalabilityTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
         stopwatch.Stop();
 
         // Assert

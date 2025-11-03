@@ -15,7 +15,7 @@
 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IncludeBuildOutput>true</IncludeBuildOutput>
-        <Copyright>Copyright © 2025 Snowberry Software</Copyright>
+        <Copyright>Copyright © $([System.DateTime]::Now.Year) Snowberry Software</Copyright>
         <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
         <PackageProjectUrl>https://github.com/snowberry-software/DependencyInjection</PackageProjectUrl>
 

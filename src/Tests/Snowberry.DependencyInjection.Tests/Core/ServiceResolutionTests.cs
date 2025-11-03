@@ -163,7 +163,7 @@ public class ServiceResolutionTests
     }
 
     [Fact]
-    public void GetService_MultipleThreads_ShouldBeSafe()
+    public async Task GetService_MultipleThreads_ShouldBeSafe()
     {
         // Arrange
         using var container = new ServiceContainer();
@@ -181,7 +181,7 @@ public class ServiceResolutionTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Assert
         Assert.Equal(10, services.Count);
