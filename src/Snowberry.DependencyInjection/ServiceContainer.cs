@@ -262,7 +262,7 @@ public partial class ServiceContainer : IServiceContainer
                                 ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
 
                             if (serviceDescriptor.SingletonInstance.IsDisposable())
-                                scope.DisposableContainer.RegisterDisposable(serviceDescriptor.SingletonInstance);
+                                RootScope.DisposableContainer.RegisterDisposable(serviceDescriptor.SingletonInstance);
                         }
                     }
                 }
