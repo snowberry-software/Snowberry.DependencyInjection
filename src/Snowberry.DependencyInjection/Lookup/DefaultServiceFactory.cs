@@ -49,9 +49,6 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         if (metadata.ConstructorInvoker == null)
         {
-            if (type.IsValueType)
-                return CreateBuiltInType(type);
-
             ThrowHelper.ThrowInvalidConstructor(type);
             return null!;
         }
@@ -124,33 +121,6 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         ThrowHelper.ThrowInvalidServiceImplementationCast(typeof(T), service.GetType());
         return default!;
-    }
-
-    protected static object CreateBuiltInType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type type)
-    {
-        var typeCode = Type.GetTypeCode(type);
-        return typeCode switch
-        {
-            TypeCode.Empty => throw new NotImplementedException(),
-            TypeCode.Object => new object(),
-            TypeCode.Boolean => false,
-            TypeCode.Byte => (byte)0,
-            TypeCode.Char => (char)0,
-            TypeCode.DateTime => DateTime.Now,
-            TypeCode.DBNull => DBNull.Value,
-            TypeCode.Decimal => (decimal)0,
-            TypeCode.Double => 0D,
-            TypeCode.Int16 => (short)0,
-            TypeCode.Int32 => 0,
-            TypeCode.Int64 => (long)0,
-            TypeCode.SByte => (sbyte)0,
-            TypeCode.Single => 0F,
-            TypeCode.String => string.Empty,
-            TypeCode.UInt16 => (ushort)0,
-            TypeCode.UInt32 => (uint)0,
-            TypeCode.UInt64 => (ulong)0,
-            _ => Activator.CreateInstance(type)!
-        };
     }
 
     /// <inheritdoc/>

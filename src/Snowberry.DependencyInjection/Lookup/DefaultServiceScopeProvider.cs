@@ -22,7 +22,7 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
-    private Dictionary<IServiceIdentifier, object> _scopedInstances = [];
+    private Dictionary<IServiceIdentifier, object>? _scopedInstances;
 
     public DefaultServiceScopeProvider(ServiceContainer rootProvider, bool isRootScope)
     {
@@ -36,6 +36,13 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
         lock (_lock)
         {
             DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+
+            if (_scopedInstances == null)
+            {
+                instance = null;
+                return false;
+            }
+
             return _scopedInstances.TryGetValue(serviceIdentifier, out instance);
         }
     }
@@ -46,6 +53,8 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
         lock (_lock)
         {
             DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+
+            _scopedInstances ??= new(4);
             _scopedInstances[serviceIdentifier] = instance;
         }
     }
@@ -119,11 +128,8 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        lock (_lock)
-        {
-            DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
-            return _rootProvider.GetKeyedService(serviceType, this, serviceKey);
-        }
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+        return _rootProvider.GetKeyedService(serviceType, this, serviceKey);
     }
 
     /// <inheritdoc/>

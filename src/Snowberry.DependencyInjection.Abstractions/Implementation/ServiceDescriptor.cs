@@ -100,7 +100,10 @@ public class ServiceDescriptor : IServiceDescriptor
     /// <inheritdoc/>
     public IServiceDescriptor CloneFor(Type serviceType)
     {
-        return new ServiceDescriptor(serviceType, ImplementationType, Lifetime, SingletonInstance);
+        return new ServiceDescriptor(serviceType, ImplementationType, Lifetime, SingletonInstance)
+        {
+            InstanceFactory = InstanceFactory
+        };
     }
 
     /// <inheritdoc/>
