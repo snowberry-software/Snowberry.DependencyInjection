@@ -43,8 +43,8 @@ public class OpenGenericServiceTests
         IRepository<string> scopedRepo1, scopedRepo2;
         using (var scope = container.CreateScope())
         {
-            scopedRepo1 = scope.ServiceFactory.GetRequiredService<IRepository<string>>();
-            scopedRepo2 = scope.ServiceFactory.GetRequiredService<IRepository<string>>();
+            scopedRepo1 = scope.ServiceProvider.GetRequiredService<IRepository<string>>();
+            scopedRepo2 = scope.ServiceProvider.GetRequiredService<IRepository<string>>();
         }
 
         // Assert
@@ -69,7 +69,7 @@ public class OpenGenericServiceTests
         Assert.NotSame(repo1, repo2); // Different instances for transient services
         Assert.IsType<Repository<string>>(repo1);
         Assert.IsType<Repository<string>>(repo2);
-        Assert.Equal(2, container.DisposableCount);
+        Assert.Equal(2, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public class OpenGenericServiceTests
                 intRepositories.Add(container.GetRequiredService<IRepository<int>>());
             }
 
-            Assert.Equal(6, container.DisposableCount);
+            Assert.Equal(6, container.DisposableContainer.DisposableCount);
             Assert.All(stringRepositories, r => Assert.False(r.IsDisposed));
             Assert.All(intRepositories, r => Assert.False(r.IsDisposed));
         }

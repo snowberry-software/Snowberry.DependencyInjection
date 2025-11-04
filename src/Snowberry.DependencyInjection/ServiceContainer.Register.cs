@@ -1,6 +1,7 @@
 ﻿using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
+using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
 
 namespace Snowberry.DependencyInjection;
@@ -12,8 +13,7 @@ public partial class ServiceContainer
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
         var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
         return _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
@@ -22,8 +22,7 @@ public partial class ServiceContainer
     /// <inheritdoc/>
     public bool IsServiceRegistered<T>(object? serviceKey)
     {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
         return IsServiceRegistered(typeof(T), serviceKey);
     }
@@ -33,8 +32,7 @@ public partial class ServiceContainer
     {
         _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
 
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
         if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.Lifetime != ServiceLifetime.Singleton)
             throw new ArgumentException("Singleton can't be used in non-singleton lifetime!", nameof(serviceDescriptor));
@@ -42,8 +40,7 @@ public partial class ServiceContainer
         if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.InstanceFactory != null)
             throw new ArgumentException("Singleton instance and instance factory can't be used together!", nameof(serviceDescriptor));
 
-        _lock.EnterWriteLock();
-        try
+        lock (_lock)
         {
             var serviceIdentifier = new ServiceIdentifier(serviceDescriptor.ServiceType, serviceKey);
             bool foundExistingServiceDescriptor = _serviceDescriptorMapping.ContainsKey(serviceIdentifier);
@@ -57,32 +54,22 @@ public partial class ServiceContainer
             _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
             return this;
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
     /// <inheritdoc/>
     public IServiceRegistry UnregisterService<T>(object? serviceKey, out bool successful)
     {
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
         return UnregisterService(typeof(T), serviceKey, out successful);
     }
 
     /// <inheritdoc/>
     public IServiceRegistry UnregisterService(Type serviceType, object? serviceKey, out bool successful)
     {
-        _lock.EnterWriteLock();
-        try
+        lock (_lock)
         {
-            if (_isDisposed)
-                throw new ObjectDisposedException(nameof(ServiceContainer));
-
+            DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
             return UnregisterServiceInternal(serviceType, serviceKey, out successful);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
         }
     }
 
@@ -94,13 +81,15 @@ public partial class ServiceContainer
         if (AreRegisteredServicesReadOnly)
             throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
 
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+
         var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
 
         if (_serviceDescriptorMapping.TryRemove(serviceIdentifier, out var serviceDescriptor))
         {
             if (serviceDescriptor.Lifetime is ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance is IDisposable disposableSingleton)
             {
-                _disposableContainer.Remove(disposableSingleton);
+                _rootScope.DisposableContainer.RemoveDisposable(disposableSingleton);
                 disposableSingleton.Dispose();
             }
 

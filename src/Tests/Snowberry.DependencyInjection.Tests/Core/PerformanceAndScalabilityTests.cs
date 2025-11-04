@@ -57,7 +57,7 @@ public class PerformanceAndScalabilityTests
 
         // Assert
         Assert.Equal(serviceCount, services.Count);
-        Assert.Equal(serviceCount, container.DisposableCount);
+        Assert.Equal(serviceCount, container.DisposableContainer.DisposableCount);
         Assert.True(stopwatch.ElapsedMilliseconds < 2000); // Should resolve quickly
     }
 
@@ -82,7 +82,7 @@ public class PerformanceAndScalabilityTests
 
         // Assert
         Assert.Equal(resolutionCount, services.Count);
-        Assert.Equal(resolutionCount, container.DisposableCount);
+        Assert.Equal(resolutionCount, container.DisposableContainer.DisposableCount);
         Assert.True(stopwatch.ElapsedMilliseconds < 5000); // Should resolve quickly
     }
 
@@ -101,7 +101,7 @@ public class PerformanceAndScalabilityTests
         for (int i = 0; i < scopeCount; i++)
         {
             using var scope = container.CreateScope();
-            services.Add(scope.ServiceFactory.GetRequiredService<ITestService>());
+            services.Add(scope.ServiceProvider.GetRequiredService<ITestService>());
         }
 
         stopwatch.Stop();
@@ -161,7 +161,7 @@ public class PerformanceAndScalabilityTests
         for (int i = 0; i < resolutionCount; i++)
         {
             using var scope = container.CreateScope();
-            services.Add(scope.ServiceFactory.GetRequiredService<IComplexService>());
+            services.Add(scope.ServiceProvider.GetRequiredService<IComplexService>());
         }
 
         stopwatch.Stop();
@@ -213,7 +213,7 @@ public class PerformanceAndScalabilityTests
             services.Add(container.GetRequiredService<ITestService>());
         }
 
-        Assert.Equal(serviceCount, container.DisposableCount);
+        Assert.Equal(serviceCount, container.DisposableContainer.DisposableCount);
         var stopwatch = Stopwatch.StartNew();
 
         // Act
@@ -226,7 +226,7 @@ public class PerformanceAndScalabilityTests
     }
 
     [Fact]
-    public void ConcurrentServiceResolution_WithHighLoad_ShouldPerformWell()
+    public async Task ConcurrentServiceResolution_WithHighLoad_ShouldPerformWell()
     {
         // Arrange
         using var container = new ServiceContainer();
@@ -252,14 +252,14 @@ public class PerformanceAndScalabilityTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
         stopwatch.Stop();
 
         // Assert
         int totalResolutions = taskCount * resolutionsPerTask;
         Assert.True(stopwatch.ElapsedMilliseconds < 5000); // Should complete reasonably quickly
         // The singleton should be shared, so only 1 + (taskCount * resolutionsPerTask) disposables
-        Assert.True(container.DisposableCount >= 1); // At least the singleton
+        Assert.True(container.DisposableContainer.DisposableCount >= 1); // At least the singleton
     }
 
     [Fact]

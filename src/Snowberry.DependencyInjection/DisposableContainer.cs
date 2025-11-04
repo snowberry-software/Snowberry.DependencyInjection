@@ -2,9 +2,7 @@
 
 namespace Snowberry.DependencyInjection;
 
-/// <summary>
-/// Container for storing disposables.
-/// </summary>
+/// <inheritdoc cref="IDisposableContainer"/>
 internal class DisposableContainer : IDisposableContainer
 {
     private List<object>? _disposables;
@@ -22,16 +20,22 @@ internal class DisposableContainer : IDisposableContainer
         RegisterDisposable((object)disposable);
     }
 
-    /// <summary>
-    /// Removes the specified instance from the collection.
-    /// </summary>
-    /// <param name="instance">The instance.</param>
-    public void Remove(object? instance)
+    /// <inheritdoc/>
+    public void RemoveDisposable(object? instance)
     {
         if (instance == null)
             return;
 
-        _disposables?.Remove(instance);
+        lock (_lock)
+        {
+            _disposables?.Remove(instance);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void RemoveDisposable(IDisposable disposable)
+    {
+        RemoveDisposable((object)disposable);
     }
 
 #if NETCOREAPP
@@ -39,6 +43,12 @@ internal class DisposableContainer : IDisposableContainer
     public void RegisterDisposable(IAsyncDisposable disposable)
     {
         RegisterDisposable((object)disposable);
+    }
+
+    /// <inheritdoc/>
+    public void RemoveDisposable(IAsyncDisposable disposable)
+    {
+        RemoveDisposable((object)disposable);
     }
 #endif
 

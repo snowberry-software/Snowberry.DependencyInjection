@@ -1,4 +1,5 @@
-﻿using Snowberry.DependencyInjection.Abstractions.Implementation;
+﻿using System.Diagnostics.CodeAnalysis;
+using Snowberry.DependencyInjection.Abstractions.Implementation;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Abstractions.Extensions;
@@ -36,7 +37,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static IServiceRegistry RegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -51,7 +52,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterSingleton<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static bool TryRegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -67,7 +68,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -87,7 +88,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterSingleton<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -107,7 +108,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
+    public static IServiceRegistry RegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -124,7 +125,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
-    public static bool TryRegisterSingleton<T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
+    public static bool TryRegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, T instance, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -141,7 +142,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -157,7 +158,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -174,7 +175,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -195,7 +196,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -216,7 +217,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -234,7 +235,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instance"/> is null.</exception>
-    public static bool TryRegisterSingleton<T, TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterSingleton<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, TImpl instance, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instance ?? throw new ArgumentNullException(nameof(instance));
@@ -251,7 +252,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static IServiceRegistry RegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -267,7 +268,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterTransient<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static bool TryRegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -284,7 +285,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterTransient<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -305,7 +306,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterTransient<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -326,7 +327,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterTransient<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -343,7 +344,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterTransient<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -361,7 +362,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterTransient<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -383,7 +384,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterTransient<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterTransient<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -403,7 +404,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static IServiceRegistry RegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -419,7 +420,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterScoped<T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
+    public static bool TryRegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -436,7 +437,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterScoped<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -457,7 +458,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterScoped<T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -478,7 +479,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterScoped<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -495,7 +496,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> is null.</exception>
-    public static bool TryRegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterScoped<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
 
@@ -513,7 +514,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static IServiceRegistry RegisterScoped<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
@@ -535,7 +536,7 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="TImpl">The implementation type that provides the service.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterScoped<T, TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
+    public static bool TryRegisterScoped<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TImpl>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<TImpl> instanceFactory, object? serviceKey = null) where TImpl : T
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));

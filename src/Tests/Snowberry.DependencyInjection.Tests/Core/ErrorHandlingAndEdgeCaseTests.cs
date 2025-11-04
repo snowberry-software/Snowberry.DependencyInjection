@@ -206,7 +206,7 @@ public class ErrorHandlingAndEdgeCaseTests
         }
 
         // No services should be created due to constructor exceptions
-        Assert.Equal(0, container.DisposableCount);
+        Assert.Equal(0, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class ErrorHandlingAndEdgeCaseTests
             Assert.Equal("Constructor exception", exception.Message);
         }
 
-        Assert.Equal(0, container.DisposableCount);
+        Assert.Equal(0, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -239,11 +239,11 @@ public class ErrorHandlingAndEdgeCaseTests
         // Act & Assert
         using var scope = container.CreateScope();
 
-        var exception = Assert.Throws<InvalidOperationException>(scope.ServiceFactory.GetRequiredService<ServiceWithThrowingConstructor>);
+        var exception = Assert.Throws<InvalidOperationException>(scope.ServiceProvider.GetRequiredService<ServiceWithThrowingConstructor>);
 
         Assert.NotNull(exception);
         Assert.Equal("Constructor exception", exception.Message);
-        Assert.Equal(0, scope.DisposableCount);
+        Assert.Equal(0, scope.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Assert
         Assert.Equal(1000, services.Count);
-        Assert.Equal(1000, container.DisposableCount);
+        Assert.Equal(1000, container.DisposableContainer.DisposableCount);
         Assert.All(services, Assert.NotNull);
     }
 
@@ -318,7 +318,7 @@ public class ErrorHandlingAndEdgeCaseTests
     }
 
     [Fact]
-    public void ConcurrentServiceResolution_ShouldBeSafe()
+    public async Task ConcurrentServiceResolution_ShouldBeSafe()
     {
         // Arrange
         using var container = new ServiceContainer();
@@ -349,22 +349,25 @@ public class ErrorHandlingAndEdgeCaseTests
         }
 
         // Wait for all tasks to complete
+        IList<ITestService>? completedTasksResult = null;
         try
         {
-            Task.WaitAll(tasks.ToArray());
+            completedTasksResult = await Task.WhenAll(tasks);
         }
         catch
         {
             // Some tasks might have failed
         }
 
+        Assert.NotNull(completedTasksResult);
+        Assert.NotEmpty(completedTasksResult);
+
         // Assert
         Assert.Empty(exceptions); // No exceptions should occur
         var completedTasks = tasks.Where(t => t.Status == TaskStatus.RanToCompletion).ToList();
-        Assert.True(completedTasks.Count > 0);
 
         // All successful resolutions should return the same singleton instance
-        var firstResult = completedTasks.First().Result;
+        var firstResult = completedTasksResult.First();
         Assert.All(completedTasks, t => Assert.Same(firstResult, t.Result));
     }
 

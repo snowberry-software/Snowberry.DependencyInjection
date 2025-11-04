@@ -23,7 +23,7 @@ public class SingletonLifetimeTests
 
         // Assert
         Assert.Same(service1, service2);
-        Assert.Equal(1, container.DisposableCount);
+        Assert.Equal(1, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class SingletonLifetimeTests
         // Assert
         Assert.Same(providedInstance, retrievedService);
         Assert.Equal("ProvidedInstance", retrievedService.Name);
-        Assert.Equal(0, container.DisposableCount); // User-provided instances are not tracked for disposal
+        Assert.Equal(0, container.DisposableContainer.DisposableCount); // User-provided instances are not tracked for disposal
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class SingletonLifetimeTests
         Assert.Same(service1, service2);
         Assert.Equal("Factory_1", service1.Name);
         Assert.Equal(1, callCount); // Factory should only be called once
-        Assert.Equal(1, container.DisposableCount);
+        Assert.Equal(1, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class SingletonLifetimeTests
         // Assert
         Assert.Same(service1, service2);
         Assert.IsType<TestService>(service1);
-        Assert.Equal(1, container.DisposableCount);
+        Assert.Equal(1, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class SingletonLifetimeTests
             service1 = (TestService)container.GetRequiredService<ITestService>();
             service2 = container.GetRequiredService<TestService>();
 
-            Assert.Equal(2, container.DisposableCount);
+            Assert.Equal(2, container.DisposableContainer.DisposableCount);
         }
 
         // Assert

@@ -14,12 +14,6 @@ public interface IServiceRegistry
     IServiceRegistry Register(IServiceDescriptor serviceDescriptor, object? serviceKey);
 
     /// <summary>
-    /// Creates a new scope which can be used to resolve scoped services.
-    /// </summary>
-    /// <returns>The instance of the scope.</returns>
-    IScope CreateScope();
-
-    /// <summary>
     /// Unregisters a registered service of the type <typeparamref name="T"/>.
     /// </summary>
     /// <remarks>All disposable instances from <typeparamref name="T"/> will be disposed as usual, except if it is a service with the lifetime of a <see cref="ServiceLifetime.Singleton"/>.

@@ -1,4 +1,3 @@
-using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Tests.TestModels;
 using Xunit;
@@ -67,7 +66,7 @@ public class TryRegisterMethodsTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterSingleton<ITestService>((sp, key) =>
@@ -89,7 +88,7 @@ public class TryRegisterMethodsTests
         // Arrange
         using var container = new ServiceContainer();
         container.RegisterSingleton<ITestService, TestService>();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterSingleton<ITestService>((sp, key) =>
@@ -236,7 +235,7 @@ public class TryRegisterMethodsTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterTransient<ITestService>((sp, key) =>
@@ -260,7 +259,7 @@ public class TryRegisterMethodsTests
         // Arrange
         using var container = new ServiceContainer();
         container.RegisterTransient<ITestService, TestService>();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterTransient<ITestService>((sp, key) =>
@@ -280,11 +279,11 @@ public class TryRegisterMethodsTests
         // Arrange
         using var container = new ServiceContainer();
         container.RegisterSingleton<ITestService, TestService>();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterTransient<IDependentService, DependentService>(
-            (sp, key) =>
+            instanceFactory: (sp, key) =>
             {
                 factoryCallCount++;
                 return new DependentService(sp.GetRequiredService<ITestService>());
@@ -314,10 +313,10 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         Assert.True(container.IsServiceRegistered<ITestService>(null));
-        
+
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.Same(service1, service2); // Scoped should reuse instance within scope
     }
 
@@ -334,7 +333,7 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.False(result);
         using var scope = container.CreateScope();
-        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.IsType<TestService>(service);
     }
 
@@ -350,8 +349,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<TestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<TestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<TestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<TestService>();
         Assert.Same(service1, service2);
     }
 
@@ -360,7 +359,7 @@ public class TryRegisterMethodsTests
     {
         // Arrange
         using var container = new ServiceContainer();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterScoped<ITestService>((sp, key) =>
@@ -372,8 +371,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.Same(service1, service2);
         Assert.Equal("ScopedInstance1", service1.Name);
         Assert.Equal(1, factoryCallCount);
@@ -385,7 +384,7 @@ public class TryRegisterMethodsTests
         // Arrange
         using var container = new ServiceContainer();
         container.RegisterScoped<ITestService, TestService>();
-        var factoryCallCount = 0;
+        int factoryCallCount = 0;
 
         // Act
         bool result = container.TryRegisterScoped<ITestService>((sp, key) =>
@@ -413,8 +412,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<IDependentService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<IDependentService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<IDependentService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<IDependentService>();
         Assert.Same(service1, service2);
     }
 
@@ -426,21 +425,17 @@ public class TryRegisterMethodsTests
         container.TryRegisterScoped<ITestService, TestService>();
 
         // Act & Assert
-        using (var scope1 = container.CreateScope())
-        {
-            var service1 = scope1.ServiceFactory.GetRequiredService<ITestService>();
-            service1.Name = "Scope1";
+        using var scope1 = container.CreateScope();
+        var service1 = scope1.ServiceProvider.GetRequiredService<ITestService>();
+        service1.Name = "Scope1";
 
-            using (var scope2 = container.CreateScope())
-            {
-                var service2 = scope2.ServiceFactory.GetRequiredService<ITestService>();
-                service2.Name = "Scope2";
+        using var scope2 = container.CreateScope();
+        var service2 = scope2.ServiceProvider.GetRequiredService<ITestService>();
+        service2.Name = "Scope2";
 
-                Assert.NotSame(service1, service2);
-                Assert.Equal("Scope1", service1.Name);
-                Assert.Equal("Scope2", service2.Name);
-            }
-        }
+        Assert.NotSame(service1, service2);
+        Assert.Equal("Scope1", service1.Name);
+        Assert.Equal("Scope2", service2.Name);
     }
 
     #endregion
@@ -511,8 +506,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
-        var service2 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
+        var service1 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
+        var service2 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
         Assert.Same(service1, service2);
     }
 
@@ -572,7 +567,7 @@ public class TryRegisterMethodsTests
         Assert.True(singletonResult);
         Assert.False(transientResult);
         Assert.False(scopedResult);
-        
+
         // Verify it's actually a singleton
         var service1 = container.GetRequiredService<ITestService>();
         var service2 = container.GetRequiredService<ITestService>();
@@ -644,7 +639,7 @@ public class TryRegisterMethodsTests
         Assert.True(result1);
         Assert.True(result2);
         Assert.True(result3);
-        
+
         var complexService = container.GetRequiredService<IComplexService>();
         Assert.NotNull(complexService.TestService);
         Assert.NotNull(complexService.DependentService);

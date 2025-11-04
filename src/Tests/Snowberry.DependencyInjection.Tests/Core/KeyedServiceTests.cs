@@ -176,7 +176,7 @@ public class KeyedServiceTests
         // Assert
         Assert.NotSame(service1a, service1b); // Different instances for same key
         Assert.NotSame(service1a, service2a); // Different instances for different keys
-        Assert.Equal(3, container.DisposableCount);
+        Assert.Equal(3, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -191,8 +191,8 @@ public class KeyedServiceTests
         ITestService scopedService1, scopedService2;
         using (var scope = container.CreateScope())
         {
-            scopedService1 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
-            scopedService2 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
+            scopedService1 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
+            scopedService2 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
         }
 
         // Assert

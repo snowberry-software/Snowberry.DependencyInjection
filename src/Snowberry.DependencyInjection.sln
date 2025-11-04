@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.0.11018.127 d18.0
+VisualStudioVersion = 18.0.11018.127
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snowberry.DependencyInjection", "Snowberry.DependencyInjection\Snowberry.DependencyInjection.csproj", "{DC9E7677-967D-4BAB-9DF1-CDCD658A7A07}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Snowberry.DependencyInjection.Tests", "Tests\Snowberry.DependencyInjection.Tests\Snowberry.DependencyInjection.Tests.csproj", "{3A3BE7E2-187D-44D7-9D70-FF576B423FAF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Snowberry.DependencyInjection.Abstractions", "Snowberry.DependencyInjection.Abstractions\Snowberry.DependencyInjection.Abstractions.csproj", "{A4EC1B14-31C8-4230-9964-500CBC60A290}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Snowberry.DependencyInjection.Tests.Aot.Console", "Tests\Snowberry.DependencyInjection.Tests.Aot.Console\Snowberry.DependencyInjection.Tests.Aot.Console.csproj", "{19373AEE-F2BE-4D54-BC08-BC50E2B714CE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,12 +31,17 @@ Global
 		{A4EC1B14-31C8-4230-9964-500CBC60A290}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A4EC1B14-31C8-4230-9964-500CBC60A290}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A4EC1B14-31C8-4230-9964-500CBC60A290}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19373AEE-F2BE-4D54-BC08-BC50E2B714CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19373AEE-F2BE-4D54-BC08-BC50E2B714CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19373AEE-F2BE-4D54-BC08-BC50E2B714CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19373AEE-F2BE-4D54-BC08-BC50E2B714CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3A3BE7E2-187D-44D7-9D70-FF576B423FAF} = {7B85AF7B-0495-408B-8E19-B0A2960A10E6}
+		{19373AEE-F2BE-4D54-BC08-BC50E2B714CE} = {7B85AF7B-0495-408B-8E19-B0A2960A10E6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FC3B1CE6-6973-4CDA-AE0D-E6F0977A8CAB}

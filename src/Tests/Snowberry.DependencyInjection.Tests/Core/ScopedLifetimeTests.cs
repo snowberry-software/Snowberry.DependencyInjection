@@ -22,12 +22,12 @@ public class ScopedLifetimeTests
 
         // Act
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
 
         // Assert
         Assert.Same(service1, service2);
-        Assert.Equal(1, scope.DisposableCount);
+        Assert.Equal(1, scope.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -41,12 +41,12 @@ public class ScopedLifetimeTests
         ITestService service1, service2;
         using (var scope1 = container.CreateScope())
         {
-            service1 = scope1.ServiceFactory.GetRequiredService<ITestService>();
+            service1 = scope1.ServiceProvider.GetRequiredService<ITestService>();
         }
 
         using (var scope2 = container.CreateScope())
         {
-            service2 = scope2.ServiceFactory.GetRequiredService<ITestService>();
+            service2 = scope2.ServiceProvider.GetRequiredService<ITestService>();
         }
 
         // Assert
@@ -67,14 +67,14 @@ public class ScopedLifetimeTests
         ITestService scopedService;
         using (var scope = container.CreateScope())
         {
-            scopedService = scope.ServiceFactory.GetRequiredService<ITestService>();
+            scopedService = scope.ServiceProvider.GetRequiredService<ITestService>();
         }
 
         // Assert
         Assert.NotSame(containerService, scopedService);
         Assert.False(containerService.IsDisposed);
         Assert.True(scopedService.IsDisposed);
-        Assert.Equal(1, container.DisposableCount);
+        Assert.Equal(1, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -93,8 +93,8 @@ public class ScopedLifetimeTests
         ITestService service1, service2;
         using (var scope = container.CreateScope())
         {
-            service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-            service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+            service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+            service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
         }
 
         // Assert
@@ -116,15 +116,15 @@ public class ScopedLifetimeTests
         ITestService service;
         using (var scope = container.CreateScope())
         {
-            service = scope.ServiceFactory.GetRequiredService<ITestService>();
+            service = scope.ServiceProvider.GetRequiredService<ITestService>();
 
             if (lifetime == ServiceLifetime.Scoped)
             {
-                Assert.Same(service, scope.ServiceFactory.GetRequiredService<ITestService>());
+                Assert.Same(service, scope.ServiceProvider.GetRequiredService<ITestService>());
             }
             else
             {
-                Assert.NotSame(service, scope.ServiceFactory.GetRequiredService<ITestService>());
+                Assert.NotSame(service, scope.ServiceProvider.GetRequiredService<ITestService>());
             }
         }
 
@@ -147,7 +147,7 @@ public class ScopedLifetimeTests
         {
             var scope = container.CreateScope();
             scopes.Add(scope);
-            var service = scope.ServiceFactory.GetRequiredService<ITestService>();
+            var service = scope.ServiceProvider.GetRequiredService<ITestService>();
             service.Name = $"Service_{i}";
             services.Add(service);
         }
@@ -184,12 +184,12 @@ public class ScopedLifetimeTests
         ITestService outerService, innerService;
         using (var outerScope = container.CreateScope())
         {
-            outerService = outerScope.ServiceFactory.GetRequiredService<ITestService>();
+            outerService = outerScope.ServiceProvider.GetRequiredService<ITestService>();
             outerService.Name = "Outer";
 
             using (var innerScope = container.CreateScope())
             {
-                innerService = innerScope.ServiceFactory.GetRequiredService<ITestService>();
+                innerService = innerScope.ServiceProvider.GetRequiredService<ITestService>();
                 innerService.Name = "Inner";
 
                 // Services should be different
@@ -220,14 +220,50 @@ public class ScopedLifetimeTests
         IScope scope;
         using (scope = container.CreateScope())
         {
-            scope.ServiceFactory.GetRequiredService<ITestService>();
-            scope.ServiceFactory.GetRequiredService<TestService>();
+            scope.ServiceProvider.GetRequiredService<ITestService>();
+            scope.ServiceProvider.GetRequiredService<TestService>();
 
-            Assert.Equal(2, scope.DisposableCount);
+            Assert.Equal(2, scope.DisposableContainer.DisposableCount);
         }
 
         // Assert
-        Assert.Equal(2, scope.DisposableCount);
+        Assert.Equal(2, scope.DisposableContainer.DisposableCount);
         Assert.True(scope.IsDisposed);
+    }
+
+    [Fact]
+    public void ScopedDependency_ResolvedInSameScope_ShouldShareSameInstance()
+    {
+        // Arrange
+        using var container = new ServiceContainer();
+        container.RegisterScoped<ITestService, TestService>();
+        container.RegisterScoped<IDependentService, DependentService>();
+
+        // Act
+        using var scope = container.CreateScope();
+        var dependentService = scope.ServiceProvider.GetRequiredService<IDependentService>();
+        var directService = scope.ServiceProvider.GetRequiredService<ITestService>();
+
+        // Assert - ServiceB injected into ServiceA should be the same reference as directly requested ServiceB
+        Assert.Same(dependentService.PrimaryDependency, directService);
+        Assert.Equal(2, scope.DisposableContainer.DisposableCount); // Only 2 instances should be created (ServiceA and ServiceB)
+    }
+
+    [Fact]
+    public void ScopedDependency_ResolvedViaIServiceProvider_ShouldShareSameInstance()
+    {
+        // Arrange
+        using var container = new ServiceContainer();
+        container.RegisterScoped<ITestService, TestService>();
+        container.RegisterScoped<ServiceWithServiceProviderDependency>();
+
+        // Act
+        using var scope = container.CreateScope();
+        var serviceWithProvider = scope.ServiceProvider.GetRequiredService<ServiceWithServiceProviderDependency>();
+        var directService = scope.ServiceProvider.GetRequiredService<ITestService>();
+
+        // Assert - ServiceB resolved via IServiceProvider.GetRequiredService<T>() should be the same reference as directly requested ServiceB
+        Assert.Same(serviceWithProvider.ResolvedService, directService);
+        Assert.Equal(2, scope.DisposableContainer.DisposableCount); // Only 2 instances should be created (ServiceWithProvider and TestService)
     }
 }
