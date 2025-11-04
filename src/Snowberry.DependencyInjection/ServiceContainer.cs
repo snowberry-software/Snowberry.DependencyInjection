@@ -208,6 +208,9 @@ public partial class ServiceContainer : IServiceContainer
         if (descriptor == null)
             return null;
 
+        if (ValidateScopes && descriptor.Lifetime == ServiceLifetime.Scoped && scope.IsGlobalScope)
+            throw new ServiceScopeRequiredException(serviceType);
+
         var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
         return GetInstanceFromDescriptor(serviceIdentifier, descriptor, scope);
     }
@@ -258,8 +261,8 @@ public partial class ServiceContainer : IServiceContainer
                     {
                         if (serviceDescriptor.SingletonInstance == null)
                         {
-                            serviceDescriptor.SingletonInstance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
-                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+                            serviceDescriptor.SingletonInstance = serviceDescriptor.InstanceFactory?.Invoke(RootScope.ServiceProvider, serviceIdentifier.ServiceKey)
+                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, RootScope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
 
                             if (serviceDescriptor.SingletonInstance.IsDisposable())
                                 RootScope.DisposableContainer.RegisterDisposable(serviceDescriptor.SingletonInstance);
@@ -355,9 +358,14 @@ public partial class ServiceContainer : IServiceContainer
     public ServiceContainerOptions Options { get; }
 
     /// <summary>
-    /// Returns whether the registered services are read-only and can't be overwritten.
+    /// Gets whether the registered services are read-only and can't be overwritten.
     /// </summary>
     public bool AreRegisteredServicesReadOnly => (Options & ServiceContainerOptions.ReadOnly) == ServiceContainerOptions.ReadOnly;
+
+    /// <summary>
+    /// Gets whether scope validation is enabled.
+    /// </summary>
+    public bool ValidateScopes => (Options & ServiceContainerOptions.ValidateScopes) == ServiceContainerOptions.ValidateScopes;
 
     /// <inheritdoc/>
     public bool IsDisposed

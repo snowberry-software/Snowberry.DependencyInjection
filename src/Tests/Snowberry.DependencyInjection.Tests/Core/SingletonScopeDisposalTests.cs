@@ -27,10 +27,10 @@ public class SingletonScopeDisposalTests
 
             // Assert - Singleton should NOT be registered in the child scope's disposable container
             Assert.Equal(0, childScope.DisposableContainer.DisposableCount);
-            
+
             // Assert - Singleton SHOULD be registered in the root scope's disposable container
             Assert.Equal(1, container.DisposableContainer.DisposableCount);
-            
+
             Assert.False(singletonService.IsDisposed);
         }
 
@@ -63,10 +63,10 @@ public class SingletonScopeDisposalTests
         using (var childScope = container.CreateScope())
         {
             var sameService = childScope.ServiceProvider.GetRequiredService<ITestService>();
-            
+
             // Should be the exact same instance
             Assert.Same(singletonService, sameService);
-            
+
             // Child scope should not track this singleton
             Assert.Equal(0, childScope.DisposableContainer.DisposableCount);
         }
@@ -98,7 +98,7 @@ public class SingletonScopeDisposalTests
         using (var scope1 = container.CreateScope())
         {
             testService = (TestService)scope1.ServiceProvider.GetRequiredService<ITestService>();
-            
+
             Assert.Equal(0, scope1.DisposableContainer.DisposableCount);
             Assert.Equal(1, container.DisposableContainer.DisposableCount);
         }
@@ -106,7 +106,7 @@ public class SingletonScopeDisposalTests
         using (var scope2 = container.CreateScope())
         {
             dependentService = (DependentService)scope2.ServiceProvider.GetRequiredService<IDependentService>();
-            
+
             // DependentService depends on ITestService, so both should be created
             Assert.Equal(0, scope2.DisposableContainer.DisposableCount);
             Assert.Equal(2, container.DisposableContainer.DisposableCount); // TestService + DependentService
@@ -115,7 +115,7 @@ public class SingletonScopeDisposalTests
         using (var scope3 = container.CreateScope())
         {
             complexService = (ComplexService)scope3.ServiceProvider.GetRequiredService<IComplexService>();
-            
+
             Assert.Equal(0, scope3.DisposableContainer.DisposableCount);
             Assert.Equal(3, container.DisposableContainer.DisposableCount); // All three services
         }
@@ -175,14 +175,14 @@ public class SingletonScopeDisposalTests
         using (var outerScope = container.CreateScope())
         {
             singletonService = (TestService)outerScope.ServiceProvider.GetRequiredService<ITestService>();
-            
+
             Assert.Equal(0, outerScope.DisposableContainer.DisposableCount);
             Assert.Equal(1, container.DisposableContainer.DisposableCount);
 
             using (var innerScope = container.CreateScope())
             {
                 var sameService = innerScope.ServiceProvider.GetRequiredService<ITestService>();
-                
+
                 Assert.Same(singletonService, sameService);
                 Assert.Equal(0, innerScope.DisposableContainer.DisposableCount);
                 Assert.Equal(1, container.DisposableContainer.DisposableCount); // Still only 1
@@ -294,7 +294,7 @@ public class SingletonScopeDisposalTests
             // Assert - Both singleton and its dependency should be in root scope
             Assert.Equal(0, childScope.DisposableContainer.DisposableCount);
             Assert.Equal(2, container.DisposableContainer.DisposableCount);
-            
+
             Assert.False(testService.IsDisposed);
             Assert.False(dependentService.IsDisposed);
         }
@@ -345,7 +345,7 @@ public class SingletonScopeDisposalTests
 
         // Act - Create singleton in root scope first
         var singletonFromRoot = (TestService)container.GetRequiredService<ITestService>();
-        
+
         Assert.Equal(1, container.DisposableContainer.DisposableCount);
         Assert.False(singletonFromRoot.IsDisposed);
 
@@ -356,7 +356,7 @@ public class SingletonScopeDisposalTests
 
             // Should be the same instance
             Assert.Same(singletonFromRoot, singletonFromChild);
-            
+
             // Should still only be tracked in root scope
             Assert.Equal(0, childScope.DisposableContainer.DisposableCount);
             Assert.Equal(1, container.DisposableContainer.DisposableCount);

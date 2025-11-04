@@ -14,6 +14,11 @@ public enum ServiceContainerOptions : byte
     ReadOnly = 1 << 0,
 
     /// <summary>
+    /// Validates that scoped services are never resolved from the root service container.
+    /// </summary>
+    ValidateScopes = 1 << 1,
+
+    /// <summary>
     /// The default options.
     /// </summary>
     Default = ReadOnly

@@ -1,5 +1,6 @@
 using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Tests.TestModels;
 
@@ -183,6 +184,28 @@ public class ServiceWithServiceProviderDependency : IDisposable
 
         // Manually resolve the service using the extension method
         ResolvedService = serviceProvider.GetRequiredService<ITestService>();
+    }
+
+    public void Dispose()
+    {
+        IsDisposed = true;
+    }
+}
+
+/// <summary>
+/// Service that receives IServiceProvider and IScope to verify scope behavior.
+/// Used for testing that services receive the correct scope context.
+/// </summary>
+public class ServiceWithScopeAndProviderDependencies : IDisposable
+{
+    public IServiceProvider ServiceProvider { get; }
+    public IScope Scope { get; }
+    public bool IsDisposed { get; private set; }
+
+    public ServiceWithScopeAndProviderDependencies(IServiceProvider serviceProvider, IScope scope)
+    {
+        ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        Scope = scope ?? throw new ArgumentNullException(nameof(scope));
     }
 
     public void Dispose()
