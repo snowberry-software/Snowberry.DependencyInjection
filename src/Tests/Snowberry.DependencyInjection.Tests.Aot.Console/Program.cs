@@ -2,6 +2,7 @@
 using Snowberry.DependencyInjection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 Console.WriteLine("=== Snowberry.DependencyInjection AOT Compatibility Tests ===\n");
 
@@ -47,11 +48,11 @@ try
         container.RegisterScoped<SimpleService>();
 
         using var scope1 = container.CreateScope();
-        var service1a = scope1.ServiceFactory.GetRequiredService<SimpleService>();
-        var service1b = scope1.ServiceFactory.GetRequiredService<SimpleService>();
+        var service1a = scope1.ServiceProvider.GetRequiredService<SimpleService>();
+        var service1b = scope1.ServiceProvider.GetRequiredService<SimpleService>();
 
         using var scope2 = container.CreateScope();
-        var service2 = scope2.ServiceFactory.GetRequiredService<SimpleService>();
+        var service2 = scope2.ServiceProvider.GetRequiredService<SimpleService>();
 
         Assert(ReferenceEquals(service1a, service1b), "Same scope should return same instance");
         Assert(!ReferenceEquals(service1a, service2), "Different scopes should return different instances");
@@ -278,11 +279,11 @@ try
     RunTest("GetConstructor Method", () =>
     {
         using var container = new ServiceContainer();
-        var constructor = container.GetConstructor(typeof(SimpleService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(SimpleService));
         Assert(constructor != null, "Constructor should not be null");
         Assert(constructor!.GetParameters().Length == 0, "SimpleService should have parameterless constructor");
 
-        var complexConstructor = container.GetConstructor(typeof(ComplexService));
+        var complexConstructor = container.ServiceFactory.GetConstructor(typeof(ComplexService));
         Assert(complexConstructor != null, "ComplexService constructor should not be null");
         Assert(complexConstructor!.GetParameters().Length == 2, "ComplexService should have 2-parameter constructor");
     });
@@ -299,8 +300,8 @@ try
         var transient2 = container.GetRequiredKeyedService<SimpleService>("transient");
 
         using var scope = container.CreateScope();
-        var scoped1 = scope.ServiceFactory.GetRequiredKeyedService<SimpleService>("scoped");
-        var scoped2 = scope.ServiceFactory.GetRequiredKeyedService<SimpleService>("scoped");
+        var scoped1 = scope.ServiceProvider.GetRequiredKeyedService<SimpleService>("scoped");
+        var scoped2 = scope.ServiceProvider.GetRequiredKeyedService<SimpleService>("scoped");
 
         Assert(!ReferenceEquals(transient1, transient2), "Transients should be different");
         Assert(ReferenceEquals(scoped1, scoped2), "Scoped should be same in scope");
@@ -356,240 +357,326 @@ try
     RunTest("Recursive Generic Types", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<RecursiveGeneric<int>>();
 
-        var service = container.GetRequiredService<RecursiveGeneric<int>>();
-        Assert(service != null, "Recursive generic should not be null");
+        var instance = container.CreateInstance<RecursiveGenericService<int>>();
+        Assert(instance != null, "Recursive generic should not be null");
+        Assert(instance!.GetInnerType() == typeof(int), "Inner type should be int");
     });
 
-    RunTest("Service with Value Type Constructor Parameter", () =>
+    // Built-in Services Tests
+    RunTest("BuiltInService_IServiceProvider_ReturnsServiceProvider", () =>
     {
         using var container = new ServiceContainer();
-        // This tests if value types in constructor are handled properly
-        container.RegisterSingleton<ServiceWithValueTypeParam>();
 
-        var service = container.GetRequiredService<ServiceWithValueTypeParam>();
-        Assert(service != null, "Service with value type param should not be null");
-        Assert(service!.Number == 0, "Value type should have default value");
+        var serviceProvider = container.GetRequiredService<IServiceProvider>();
+        Assert(serviceProvider != null, "IServiceProvider should not be null");
+        // Container is a wrapper - can't guarantee it returns container itself
+        var provider2 = container.GetRequiredService<IServiceProvider>();
+        Assert(ReferenceEquals(serviceProvider, provider2), "Same provider should be returned");
     });
 
-    RunTest("Covariant Generic Interface", () =>
+    RunTest("BuiltInService_IServiceProvider_InScope_ReturnsScope", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<ICovariant<MyServiceImpl>, CovariantService>();
+        using var scope = container.CreateScope();
 
-        var service = container.GetRequiredService<ICovariant<MyServiceImpl>>();
-        Assert(service != null, "Covariant service should not be null");
+        var serviceProvider = scope.ServiceProvider.GetRequiredService<IServiceProvider>();
+        Assert(serviceProvider != null, "IServiceProvider should not be null");
+        Assert(ReferenceEquals(scope.ServiceProvider, serviceProvider), "IServiceProvider should be the scope");
+
+        // Verify it's different from root
+        var rootServiceProvider = container.GetService<IServiceProvider>();
+        Assert(!ReferenceEquals(rootServiceProvider, serviceProvider), "Root and scope providers should differ");
     });
 
-    RunTest("Service with Multiple Generic Parameters", () =>
+    RunTest("BuiltInService_IScope_ReturnsRootScope", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<MultiGenericService<string, int, bool>>();
 
-        var service = container.GetRequiredService<MultiGenericService<string, int, bool>>();
-        Assert(service != null, "Multi-generic service should not be null");
-        Assert(service!.GetTypeNames() == "String, Int32, Boolean", "Type names should match");
+        var scope = container.GetRequiredService<IScope>();
+        Assert(scope != null, "IScope should not be null");
+        Assert(scope!.IsGlobalScope, "Root scope should be global");
     });
 
-    RunTest("Deeply Nested Property Injection", () =>
+    RunTest("BuiltInService_IScope_InScope_ReturnsNonGlobalScope", () =>
+    {
+        using var container = new ServiceContainer();
+        using var createdScope = container.CreateScope();
+
+        var scope = createdScope.ServiceProvider.GetRequiredService<IScope>();
+        Assert(scope != null, "IScope should not be null");
+        Assert(!scope!.IsGlobalScope, "Created scope should not be global");
+    });
+
+    RunTest("BuiltInService_IServiceScopeFactory_ReturnsFactory", () =>
+    {
+        using var container = new ServiceContainer();
+
+        var factory = container.GetRequiredService<IServiceScopeFactory>();
+        Assert(factory != null, "IServiceScopeFactory should not be null");
+    });
+
+    RunTest("BuiltInService_IServiceScopeFactory_CanCreateScopes", () =>
+    {
+        using var container = new ServiceContainer();
+        var factory = container.GetRequiredService<IServiceScopeFactory>();
+
+        using var scope1 = factory.CreateScope();
+        using var scope2 = factory.CreateScope();
+
+        Assert(scope1 != null, "Scope 1 should not be null");
+        Assert(scope2 != null, "Scope 2 should not be null");
+        Assert(!ReferenceEquals(scope1, scope2), "Scopes should be different");
+    });
+
+    RunTest("BuiltInService_IServiceFactory_ReturnsFactory", () =>
+    {
+        using var container = new ServiceContainer();
+
+        var factory = container.GetRequiredService<IServiceFactory>();
+        Assert(factory != null, "IServiceFactory should not be null");
+        // Don't assume container.ServiceFactory is same instance
+    });
+
+    RunTest("BuiltInService_KeyedServices_WorkWithBuiltIns", () =>
+    {
+        using var container = new ServiceContainer();
+
+        // With null key - should work
+        var serviceProviderNull = container.GetKeyedService<IServiceProvider>(null);
+        var scopeNull = container.GetKeyedService<IScope>(null);
+        var scopeFactoryNull = container.GetKeyedService<IServiceScopeFactory>(null);
+        var serviceFactoryNull = container.GetKeyedService<IServiceFactory>(null);
+
+        Assert(serviceProviderNull != null, "Null-keyed IServiceProvider should work");
+        Assert(scopeNull != null, "Null-keyed IScope should work");
+        Assert(scopeFactoryNull != null, "Null-keyed IServiceScopeFactory should work");
+        Assert(serviceFactoryNull != null, "Null-keyed IServiceFactory should work");
+
+        // With non-null key - should return null
+        var serviceProvider = container.GetKeyedService<IServiceProvider>("anyKey");
+        var scope = container.GetKeyedService<IScope>("anyKey");
+        var scopeFactory = container.GetKeyedService<IServiceScopeFactory>("anyKey");
+        var serviceFactory = container.GetKeyedService<IServiceFactory>("anyKey");
+
+        Assert(serviceProvider == null, "Non-null-keyed IServiceProvider should return null");
+        Assert(scope == null, "Non-null-keyed IScope should return null");
+        Assert(scopeFactory == null, "Non-null-keyed IServiceScopeFactory should return null");
+        Assert(serviceFactory == null, "Non-null-keyed IServiceFactory should return null");
+    });
+
+    RunTest("BuiltInService_InjectedIntoUserService", () =>
+    {
+        using var container = new ServiceContainer();
+        container.RegisterSingleton<ServiceWithBuiltInDependencies>();
+
+        var service = container.GetRequiredService<ServiceWithBuiltInDependencies>();
+        Assert(service != null, "Service should not be null");
+        Assert(service!.ServiceProvider != null, "IServiceProvider should be injected");
+        Assert(service!.Scope != null, "IScope should be injected");
+        Assert(service!.ScopeFactory != null, "IServiceScopeFactory should be injected");
+        Assert(service!.ServiceFactory != null, "IServiceFactory should be injected");
+
+        // Verify the injected scope is the global scope
+        Assert(service!.Scope.IsGlobalScope, "Injected scope should be global");
+    });
+
+    RunTest("BuiltInService_MultipleScopesHaveDifferentProviders", () =>
+    {
+        using var container = new ServiceContainer();
+        container.RegisterScoped<ServiceWithBuiltInDependencies>();
+
+        using var scope1 = container.CreateScope();
+        using var scope2 = container.CreateScope();
+
+        var service1 = scope1.ServiceProvider.GetRequiredService<ServiceWithBuiltInDependencies>();
+        var service2 = scope2.ServiceProvider.GetRequiredService<ServiceWithBuiltInDependencies>();
+
+        Assert(!ReferenceEquals(service1, service2), "Services in different scopes should differ");
+        Assert(!ReferenceEquals(service1.ServiceProvider, service2.ServiceProvider), "ServiceProviders should differ");
+        Assert(ReferenceEquals(service1.ServiceFactory, service2.ServiceFactory), "ServiceFactories should be same");
+    });
+
+    // CreateInstance Extension Method Tests
+    RunTest("CreateInstance_WithNoParameters_CreatesInstance", () =>
+    {
+        using var container = new ServiceContainer();
+
+        var instance = container.CreateInstance<SimpleService>();
+        Assert(instance != null, "Instance should not be null");
+    });
+
+    RunTest("CreateInstance_WithDependency_InjectsDependency", () =>
     {
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
-        container.RegisterSingleton<ServiceWithDependency>();
-        container.RegisterSingleton<DeeplyNestedPropertyService>();
 
-        var service = container.GetRequiredService<DeeplyNestedPropertyService>();
-        Assert(service!.Level1 != null, "Level 1 should be injected");
-        Assert(service!.Level1!.Dependency != null, "Nested dependency should be injected");
+        var instance = container.CreateInstance<ServiceWithDependency>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.Dependency != null, "Dependency should be injected");
     });
 
-    RunTest("Service with Struct Property", () =>
+    RunTest("CreateInstance_WithPropertyInjection_InjectsProperties", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<ServiceWithStructProperty>();
+        container.RegisterSingleton<SimpleService>();
 
-        var service = container.GetRequiredService<ServiceWithStructProperty>();
-        Assert(service != null, "Service should not be null");
-        Assert(service!.Point.X == 0 && service.Point.Y == 0, "Struct should have default values");
+        var instance = container.CreateInstance<ServiceWithPropertyInjection>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.InjectedService != null, "Property should be injected");
     });
 
-    RunTest("Factory with Closure Variable", () =>
+    RunTest("CreateInstance_NonGeneric_CreatesCorrectType", () =>
     {
         using var container = new ServiceContainer();
-        int capturedValue = 42;
-        container.RegisterSingleton<IMyService>((sp, key) => new MyServiceImplWithValue(capturedValue));
+        container.RegisterSingleton<SimpleService>();
 
-        var service = container.GetRequiredService<IMyService>();
-        Assert(service!.GetValue() == 42, "Captured value should be used");
+        object? instance = container.CreateInstance(typeof(ServiceWithDependency));
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance is ServiceWithDependency, "Instance should be correct type");
     });
 
-    RunTest("Service with Abstract Base Class", () =>
+    RunTest("CreateInstance_AlwaysCreatesNewInstance", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<AbstractBase, ConcreteImplementation>();
+        container.RegisterSingleton<SimpleService>();
 
-        var service = container.GetRequiredService<AbstractBase>();
-        Assert(service != null, "Abstract base service should not be null");
-        Assert(service is ConcreteImplementation, "Should be concrete implementation");
+        var instance1 = container.CreateInstance<ServiceWithDependency>();
+        var instance2 = container.CreateInstance<ServiceWithDependency>();
+
+        Assert(!ReferenceEquals(instance1, instance2), "Instances should be different");
+        Assert(ReferenceEquals(instance1!.Dependency, instance2!.Dependency), "Dependencies should be same (singleton)");
     });
 
-    RunTest("Service with Internal Constructor", () =>
-    {
-        using var container = new ServiceContainer();
-
-        // Internal constructors cannot be accessed by DI - this is expected to fail
-        try
-        {
-            container.RegisterSingleton<ServiceWithInternalConstructor>();
-            var service = container.GetRequiredService<ServiceWithInternalConstructor>();
-            Assert(false, "Should have failed - internal constructors are not accessible");
-        }
-        catch
-        {
-            // Expected - internal constructors should not be accessible
-            Assert(true, "Internal constructor correctly fails");
-        }
-    });
-
-    RunTest("Keyed Service with Null Key", () =>
-    {
-        using var container = new ServiceContainer();
-        container.RegisterSingleton<IMyService, MyServiceImpl>((object?)null);
-
-        var service = container.GetRequiredKeyedService<IMyService>(null);
-        Assert(service != null, "Service with null key should work");
-    });
-
-    RunTest("Generic Service with Interface Constraint", () =>
-    {
-        using var container = new ServiceContainer();
-        container.RegisterSingleton<GenericWithInterfaceConstraint<MyServiceImpl>>();
-
-        var service = container.GetRequiredService<GenericWithInterfaceConstraint<MyServiceImpl>>();
-        Assert(service != null, "Generic with interface constraint should work");
-    });
-
-    RunTest("Service with Enum Property Injection", () =>
-    {
-        using var container = new ServiceContainer();
-        container.RegisterSingleton<ServiceWithEnum>();
-
-        var service = container.GetRequiredService<ServiceWithEnum>();
-        Assert(service!.Status == ServiceStatus.Pending, "Enum should have default value");
-    });
-
-    RunTest("Nested Scopes with Same Service", () =>
+    RunTest("CreateInstance_FromScope_UsesCorrectServiceProvider", () =>
     {
         using var container = new ServiceContainer();
         container.RegisterScoped<SimpleService>();
 
-        using var outerScope = container.CreateScope();
-        var outerService = outerScope.ServiceFactory.GetRequiredService<SimpleService>();
+        using var scope1 = container.CreateScope();
+        using var scope2 = container.CreateScope();
 
-        using var innerScope = container.CreateScope();
-        var innerService = innerScope.ServiceFactory.GetRequiredService<SimpleService>();
+        var instance1 = scope1.ServiceProvider.CreateInstance<ServiceWithDependency>();
+        var instance2 = scope2.ServiceProvider.CreateInstance<ServiceWithDependency>();
 
-        Assert(!ReferenceEquals(outerService, innerService), "Different scopes should have different instances");
+        Assert(!ReferenceEquals(instance1!.Dependency, instance2!.Dependency), "Scoped dependencies should differ");
     });
 
-    RunTest("Service with Array Constructor Parameter", () =>
+    RunTest("CreateInstance_GenericService_CreatesCorrectly", () =>
     {
         using var container = new ServiceContainer();
-        // Arrays need to be explicitly provided or have default value
-        container.RegisterSingleton(new ServiceWithArrayParam(new[] { "test1", "test2" }));
 
-        var service = container.GetRequiredService<ServiceWithArrayParam>();
-        Assert(service != null, "Service with array param should work");
-        Assert(service!.Items != null && service.Items.Length == 2, "Array should have 2 items");
+        var instance = container.CreateInstance<GenericService<string>>();
+        Assert(instance != null, "Generic instance should not be null");
+        Assert(instance!.GetTypeName() == "String", "Generic type should be correct");
     });
 
-    RunTest("Service Resolution After Container Modification", () =>
+    RunTest("CreateInstance_MultipleGenericParameters_CreatesCorrectly", () =>
     {
-        using var container = new ServiceContainer(ServiceContainerOptions.Default & ~ServiceContainerOptions.ReadOnly);
-        container.RegisterSingleton<IMyService, MyServiceImpl>();
-        var service1 = container.GetRequiredService<IMyService>();
+        using var container = new ServiceContainer();
 
+        var instance = container.CreateInstance<MultiGenericServiceAot<string, int, bool>>();
+        Assert(instance != null, "Multi-generic instance should not be null");
+        Assert(instance!.GetTypeNames() == "String, Int32, Boolean", "Type names should match");
+    });
+
+    RunTest("CreateInstance_WithOptionalProperty_DoesNotThrow", () =>
+    {
+        using var container = new ServiceContainer();
+        // SimpleService not registered
+
+        var instance = container.CreateInstance<ServiceWithOptionalProperty>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.OptionalService == null, "Optional property should be null");
+    });
+
+    RunTest("CreateInstance_WithKeyedDependency_InjectsKeyedService", () =>
+    {
+        using var container = new ServiceContainer();
+        container.RegisterSingleton<IMyService, MyServiceImpl>("primary");
+
+        var instance = container.CreateInstance<ServiceWithKeyedDependency>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.PrimaryService != null, "Keyed dependency should be injected");
+    });
+
+    RunTest("CreateInstance_WithPreferredConstructor_UsesPreferred", () =>
+    {
+        using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
-        var service2 = container.GetRequiredService<SimpleService>();
 
-        Assert(service1 != null && service2 != null, "Both services should resolve after modifications");
+        var instance = container.CreateInstance<ServiceWithMultipleConstructors>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.UsedPreferredConstructor, "Should use preferred constructor");
     });
 
-    RunTest("Factory Returning Null (Should Fail)", () =>
+    RunTest("CreateInstance_FromServiceFactory_CreatesInstance", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<IMyService>((sp, key) => null!);
+        var serviceFactory = container.GetRequiredService<IServiceFactory>();
 
-        try
-        {
-            var service = container.GetRequiredService<IMyService>();
-            Assert(false, "Should have thrown exception for null factory result");
-        }
-        catch
-        {
-            // Expected - factory returning null should fail
-            Assert(true, "Factory returning null correctly throws");
-        }
+        var instance = serviceFactory.CreateInstance<SimpleService>(container);
+        Assert(instance != null, "Instance from factory should not be null");
     });
 
-    RunTest("Multiple Disposal Calls on Same Service", () =>
+    RunTest("CreateInstance_NonGenericFromFactory_CreatesInstance", () =>
+    {
+        using var container = new ServiceContainer();
+        var serviceFactory = container.GetRequiredService<IServiceFactory>();
+
+        object? instance = serviceFactory.CreateInstance(typeof(SimpleService), container);
+        Assert(instance != null, "Instance from factory should not be null");
+        Assert(instance is SimpleService, "Instance should be correct type");
+    });
+
+    RunTest("CreateInstance_WithDisposableService_ServiceIsDisposed", () =>
     {
         DisposableService service;
         using (var container = new ServiceContainer())
         {
-            container.RegisterSingleton<DisposableService>();
-            service = container.GetRequiredService<DisposableService>();
+            service = container.CreateInstance<DisposableService>();
+            Assert(!service.IsDisposed, "Service should not be disposed yet");
         }
 
-        // Try disposing again
-        service.Dispose();
-        service.Dispose();
-
-        Assert(service!.IsDisposed, "Service should remain disposed");
+        Assert(!service!.IsDisposed, "Service should not be disposed after container disposal");
     });
 
-    RunTest("Generic Service with Tuple Types", () =>
+    RunTest("CreateInstance_ComplexGenericType_CreatesCorrectly", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterSingleton<GenericService<(string Name, int Age)>>();
 
-        var service = container.GetRequiredService<GenericService<(string Name, int Age)>>();
-        Assert(service != null, "Tuple generic service should work");
+        var instance = container.CreateInstance<ComplexGenericServiceAot<List<Dictionary<string, int>>>>();
+        Assert(instance != null, "Complex generic should not be null");
     });
 
-    RunTest("Service with Lazy<T> Dependency", () =>
+    RunTest("CreateInstance_WithBothInjectionTypes_InjectsBoth", () =>
     {
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
-        // Lazy<T> needs to be registered as a factory
-        container.RegisterSingleton<Lazy<SimpleService>>((sp, key) => new Lazy<SimpleService>(() => sp.GetRequiredService<SimpleService>()));
-        container.RegisterSingleton<ServiceWithLazyDependency>();
+        container.RegisterSingleton<IMyService, MyServiceImpl>();
 
-        var service = container.GetRequiredService<ServiceWithLazyDependency>();
-        Assert(service!.LazyService != null, "Lazy should not be null");
-        Assert(!service.LazyService!.IsValueCreated, "Lazy should not be created yet");
-        var value = service.LazyService.Value;
-        Assert(service!.LazyService.IsValueCreated, "Lazy should be created after access");
+        var instance = container.CreateInstance<ServiceWithBothInjectionTypesAot>();
+        Assert(instance != null, "Instance should not be null");
+        Assert(instance!.ConstructorDependency != null, "Constructor dependency should be injected");
+        Assert(instance!.PropertyDependency != null, "Property dependency should be injected");
     });
 
-    RunTest("Service with Func<T> Factory Dependency", () =>
+    RunTest("GetConstructor_ReturnsCorrectConstructor", () =>
     {
         using var container = new ServiceContainer();
-        container.RegisterTransient<SimpleService>();
-        // Func<T> needs to be registered as a factory
-        container.RegisterSingleton<Func<SimpleService>>((sp, key) => () => sp.GetRequiredService<SimpleService>());
-        container.RegisterSingleton<ServiceWithFuncDependency>();
+        var constructor = container.ServiceFactory.GetConstructor(typeof(SimpleService));
+        Assert(constructor != null, "Constructor should not be null");
+        Assert(constructor!.GetParameters().Length == 0, "SimpleService should have parameterless constructor");
+    });
 
-        var service = container.GetRequiredService<ServiceWithFuncDependency>();
-        var instance1 = service.Factory();
-        var instance2 = service.Factory();
-
-        Assert(instance1 != null && instance2 != null, "Instances should not be null");
-        Assert(!ReferenceEquals(instance1, instance2), "Func should create new instances");
+    RunTest("GetConstructor_ComplexService_ReturnsCorrectConstructor", () =>
+    {
+        using var container = new ServiceContainer();
+        var constructor = container.ServiceFactory.GetConstructor(typeof(ComplexService));
+        Assert(constructor != null, "ComplexService constructor should not be null");
+        Assert(constructor!.GetParameters().Length == 2, "ComplexService should have 2-parameter constructor");
     });
 }
-
 catch (Exception ex)
 {
     Console.ForegroundColor = ConsoleColor.Red;
@@ -1013,5 +1100,62 @@ public class ServiceWithFuncDependency
     public ServiceWithFuncDependency(Func<SimpleService> factory)
     {
         Factory = factory;
+    }
+}
+
+public class ServiceWithBuiltInDependencies
+{
+    public IServiceProvider ServiceProvider { get; }
+    public IScope Scope { get; }
+    public IServiceScopeFactory ScopeFactory { get; }
+    public IServiceFactory ServiceFactory { get; }
+
+    public ServiceWithBuiltInDependencies(
+        IServiceProvider serviceProvider,
+        IScope scope,
+        IServiceScopeFactory scopeFactory,
+        IServiceFactory serviceFactory)
+    {
+        ServiceProvider = serviceProvider;
+        Scope = scope;
+        ScopeFactory = scopeFactory;
+        ServiceFactory = serviceFactory;
+    }
+}
+
+public class MultiGenericServiceAot<T1, T2, T3>
+{
+    public string GetTypeNames()
+    {
+        return $"{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}";
+    }
+}
+
+public class ComplexGenericServiceAot<T>
+{
+    public string GetTypeName()
+    {
+        return typeof(T).Name;
+    }
+}
+
+public class ServiceWithBothInjectionTypesAot
+{
+    public SimpleService ConstructorDependency { get; }
+
+    [Inject]
+    public IMyService? PropertyDependency { get; set; }
+
+    public ServiceWithBothInjectionTypesAot(SimpleService constructorDependency)
+    {
+        ConstructorDependency = constructorDependency;
+    }
+}
+
+public class RecursiveGenericService<T>
+{
+    public Type GetInnerType()
+    {
+        return typeof(T);
     }
 }

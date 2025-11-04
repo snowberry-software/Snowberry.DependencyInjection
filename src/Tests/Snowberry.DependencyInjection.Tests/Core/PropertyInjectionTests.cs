@@ -237,13 +237,13 @@ public class PropertyInjectionTests
         // Act
         using (var scope1 = container.CreateScope())
         {
-            scopedService1 = scope1.ServiceFactory.GetRequiredService<PropertyInjectionService>();
-            scopedService2 = scope1.ServiceFactory.GetRequiredService<PropertyInjectionService>();
+            scopedService1 = scope1.ServiceProvider.GetRequiredService<PropertyInjectionService>();
+            scopedService2 = scope1.ServiceProvider.GetRequiredService<PropertyInjectionService>();
         }
 
         using (var scope2 = container.CreateScope())
         {
-            separateScopeService = scope2.ServiceFactory.GetRequiredService<PropertyInjectionService>();
+            separateScopeService = scope2.ServiceProvider.GetRequiredService<PropertyInjectionService>();
         }
 
         // Assert

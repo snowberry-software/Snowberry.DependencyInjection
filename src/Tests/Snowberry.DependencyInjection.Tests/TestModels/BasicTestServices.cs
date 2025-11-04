@@ -1,4 +1,5 @@
 using Snowberry.DependencyInjection.Abstractions.Attributes;
+using Snowberry.DependencyInjection.Abstractions.Extensions;
 
 namespace Snowberry.DependencyInjection.Tests.TestModels;
 
@@ -158,6 +159,30 @@ public class HybridService : IHybridService
     public HybridService(ITestService constructorInjected)
     {
         ConstructorInjected = constructorInjected ?? throw new ArgumentNullException(nameof(constructorInjected));
+    }
+
+    public void Dispose()
+    {
+        IsDisposed = true;
+    }
+}
+
+/// <summary>
+/// Service that resolves dependencies via IServiceProvider in constructor.
+/// Used for testing that scoped services resolved manually share the same instance.
+/// </summary>
+public class ServiceWithServiceProviderDependency : IDisposable
+{
+    public ITestService ResolvedService { get; }
+    public bool IsDisposed { get; private set; }
+
+    public ServiceWithServiceProviderDependency(IServiceProvider serviceProvider)
+    {
+        if (serviceProvider == null)
+            throw new ArgumentNullException(nameof(serviceProvider));
+
+        // Manually resolve the service using the extension method
+        ResolvedService = serviceProvider.GetRequiredService<ITestService>();
     }
 
     public void Dispose()

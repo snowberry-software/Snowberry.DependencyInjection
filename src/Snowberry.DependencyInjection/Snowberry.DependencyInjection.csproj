@@ -31,4 +31,8 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Snowberry.DependencyInjection.Abstractions\Snowberry.DependencyInjection.Abstractions.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Extensions\" />
+	</ItemGroup>
 </Project>

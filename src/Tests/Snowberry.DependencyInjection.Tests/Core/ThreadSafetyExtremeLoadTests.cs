@@ -147,8 +147,8 @@ public class ThreadSafetyExtremeLoadTests
                     for (int j = 0; j < scopesPerThread; j++)
                     {
                         using var scope = container.CreateScope();
-                        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
-                        var dependent = scope.ServiceFactory.GetRequiredService<IDependentService>();
+                        var service = scope.ServiceProvider.GetRequiredService<ITestService>();
+                        var dependent = scope.ServiceProvider.GetRequiredService<IDependentService>();
 
                         if (service == null)
                             throw new InvalidOperationException("Scoped service was null");
@@ -251,7 +251,7 @@ public class ThreadSafetyExtremeLoadTests
                     for (int j = 0; j < 20; j++)
                     {
                         using var scope = container.CreateScope();
-                        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
+                        var service = scope.ServiceProvider.GetRequiredService<ITestService>();
                         if (service == null)
                             throw new InvalidOperationException("Scoped service was null");
                         Interlocked.Increment(ref scopeCounter);
@@ -507,7 +507,7 @@ public class ThreadSafetyExtremeLoadTests
                             case 2: // Scoped access
                                 using (var scope = container.CreateScope())
                                 {
-                                    var scoped = scope.ServiceFactory.GetRequiredService<IComplexService>();
+                                    var scoped = scope.ServiceProvider.GetRequiredService<IComplexService>();
                                     if (scoped == null)
                                         throw new InvalidOperationException("Scoped was null");
                                 }

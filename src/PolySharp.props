@@ -10,6 +10,9 @@
             System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessageAttribute;
             System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute;
             System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute;
+            System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
+            System.Diagnostics.CodeAnalysis.DoesNotReturnAttribute;
+            System.Diagnostics.CodeAnalysis.DoesNotReturnIfAttribute;
         </PolySharpIncludeGeneratedTypes>
     </PropertyGroup>
 

@@ -74,12 +74,12 @@ public class AsyncDisposalTests
 
         await using (var scope = container.CreateScope())
         {
-            scopedService = scope.ServiceFactory.GetRequiredService<IAsyncTestService>();
-            scopedDependentService = scope.ServiceFactory.GetRequiredKeyedService<IAsyncTestService>("dependent");
+            scopedService = scope.ServiceProvider.GetRequiredService<IAsyncTestService>();
+            scopedDependentService = scope.ServiceProvider.GetRequiredKeyedService<IAsyncTestService>("dependent");
 
             scopedService.Name = "Scoped";
 
-            Assert.Equal(3, scope.DisposableCount);
+            Assert.Equal(3, scope.DisposableContainer.DisposableCount);
         }
 
         // Assert
@@ -104,7 +104,7 @@ public class AsyncDisposalTests
             services.Add(service);
         }
 
-        Assert.Equal(3, container.DisposableCount);
+        Assert.Equal(3, container.DisposableContainer.DisposableCount);
 
         // Act
         await container.DisposeAsync();
@@ -132,7 +132,7 @@ public class AsyncDisposalTests
             services.Add(service);
         }
 
-        Assert.Equal(5, container.DisposableCount);
+        Assert.Equal(5, container.DisposableContainer.DisposableCount);
 
         // Act
         await container.DisposeAsync();
@@ -173,7 +173,7 @@ public class AsyncDisposalTests
         IAsyncTestService mainService;
         using (var scope = container.CreateScope())
         {
-            mainService = scope.ServiceFactory.GetRequiredService<IAsyncTestService>();
+            mainService = scope.ServiceProvider.GetRequiredService<IAsyncTestService>();
 
             Assert.NotNull(mainService);
 

@@ -19,7 +19,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(typeof(ParameterlessService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(ParameterlessService));
 
         // Assert
         Assert.NotNull(constructor);
@@ -33,7 +33,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(typeof(SingleParameterService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(SingleParameterService));
 
         // Assert
         Assert.NotNull(constructor);
@@ -48,7 +48,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(typeof(MultiParameterService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(MultiParameterService));
 
         // Assert
         Assert.NotNull(constructor);
@@ -67,7 +67,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(typeof(PreferredConstructorService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(PreferredConstructorService));
 
         // Assert
         Assert.NotNull(constructor);
@@ -85,7 +85,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(typeof(ComplexConstructorService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(ComplexConstructorService));
 
         // Assert
         Assert.NotNull(constructor);
@@ -152,7 +152,7 @@ public class ConstructorSelectionTests
         Assert.Equal(2, service.ConstructorUsed); // Should use the preferred constructor
 
         // Verify the constructor has the PreferredConstructor attribute
-        var constructor = container.GetConstructor(typeof(PreferredConstructorComplexService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(PreferredConstructorComplexService));
         Assert.NotNull(constructor?.GetCustomAttribute<PreferredConstructorAttribute>());
     }
 
@@ -171,7 +171,7 @@ public class ConstructorSelectionTests
         // Act & Assert
         // The constructor selection will still pick the one with most parameters,
         // but CreateInstance will fail due to missing dependency
-        var constructor = container.GetConstructor(typeof(ComplexConstructorService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(ComplexConstructorService));
         Assert.NotNull(constructor);
         Assert.Equal(2, constructor!.GetParameters().Length); // Still selects constructor with most parameters
 
@@ -192,7 +192,7 @@ public class ConstructorSelectionTests
 
         // Act & Assert
         // GetConstructor should still select the preferred constructor
-        var constructor = container.GetConstructor(typeof(FallbackConstructorService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(FallbackConstructorService));
         Assert.NotNull(constructor);
         Assert.NotNull(constructor!.GetCustomAttribute<PreferredConstructorAttribute>());
         Assert.Equal(2, constructor.GetParameters().Length);
@@ -213,7 +213,7 @@ public class ConstructorSelectionTests
 
         // Act & Assert
         // GetConstructor should still select the constructor with most parameters
-        var constructor = container.GetConstructor(typeof(ComplexConstructorService));
+        var constructor = container.ServiceFactory.GetConstructor(typeof(ComplexConstructorService));
         Assert.NotNull(constructor);
         Assert.Equal(2, constructor!.GetParameters().Length);
 
@@ -249,7 +249,7 @@ public class ConstructorSelectionTests
         // Act
         for (int i = 0; i < iterations; i++)
         {
-            container.GetConstructor(typeof(MultiParameterService));
+            container.ServiceFactory.GetConstructor(typeof(MultiParameterService));
         }
 
         stopwatch.Stop();
@@ -270,7 +270,7 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Act
-        var constructor = container.GetConstructor(serviceType);
+        var constructor = container.ServiceFactory.GetConstructor(serviceType);
 
         // Assert
         Assert.NotNull(constructor);
@@ -306,18 +306,18 @@ public class ConstructorSelectionTests
         using var container = new ServiceContainer();
 
         // Test 1: Single constructor
-        var singleConstructor = container.GetConstructor(typeof(ParameterlessService));
+        var singleConstructor = container.ServiceFactory.GetConstructor(typeof(ParameterlessService));
         Assert.NotNull(singleConstructor);
         Assert.Empty(singleConstructor!.GetParameters());
 
         // Test 2: Preferred constructor (should override parameter count)
-        var preferredConstructor = container.GetConstructor(typeof(PreferredConstructorService));
+        var preferredConstructor = container.ServiceFactory.GetConstructor(typeof(PreferredConstructorService));
         Assert.NotNull(preferredConstructor);
         Assert.NotNull(preferredConstructor!.GetCustomAttribute<PreferredConstructorAttribute>());
         Assert.Equal(2, preferredConstructor.GetParameters().Length);
 
         // Test 3: Most parameters (no preferred constructor)
-        var mostParamsConstructor = container.GetConstructor(typeof(ComplexConstructorService));
+        var mostParamsConstructor = container.ServiceFactory.GetConstructor(typeof(ComplexConstructorService));
         Assert.NotNull(mostParamsConstructor);
         Assert.Null(mostParamsConstructor!.GetCustomAttribute<PreferredConstructorAttribute>());
         Assert.Equal(2, mostParamsConstructor.GetParameters().Length); // Should be the one with most parameters

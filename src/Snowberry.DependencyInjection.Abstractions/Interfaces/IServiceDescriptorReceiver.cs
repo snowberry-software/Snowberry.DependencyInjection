@@ -3,7 +3,7 @@
 /// <summary>
 /// Receives the <see cref="IServiceDescriptor"/> from a given registered service.
 /// </summary>
-public interface IServiceDescriptorReceiver : IDisposableContainer, IEnumerable<IServiceDescriptor>
+public interface IServiceDescriptorReceiver : IEnumerable<IServiceDescriptor>
 {
     /// <summary>
     /// Gets the service descriptor for the specified <paramref name="serviceType"/>.

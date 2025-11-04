@@ -206,7 +206,7 @@ public class ErrorHandlingAndEdgeCaseTests
         }
 
         // No services should be created due to constructor exceptions
-        Assert.Equal(0, container.DisposableCount);
+        Assert.Equal(0, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class ErrorHandlingAndEdgeCaseTests
             Assert.Equal("Constructor exception", exception.Message);
         }
 
-        Assert.Equal(0, container.DisposableCount);
+        Assert.Equal(0, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -239,11 +239,11 @@ public class ErrorHandlingAndEdgeCaseTests
         // Act & Assert
         using var scope = container.CreateScope();
 
-        var exception = Assert.Throws<InvalidOperationException>(scope.ServiceFactory.GetRequiredService<ServiceWithThrowingConstructor>);
+        var exception = Assert.Throws<InvalidOperationException>(scope.ServiceProvider.GetRequiredService<ServiceWithThrowingConstructor>);
 
         Assert.NotNull(exception);
         Assert.Equal("Constructor exception", exception.Message);
-        Assert.Equal(0, scope.DisposableCount);
+        Assert.Equal(0, scope.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public class ErrorHandlingAndEdgeCaseTests
 
         // Assert
         Assert.Equal(1000, services.Count);
-        Assert.Equal(1000, container.DisposableCount);
+        Assert.Equal(1000, container.DisposableContainer.DisposableCount);
         Assert.All(services, Assert.NotNull);
     }
 

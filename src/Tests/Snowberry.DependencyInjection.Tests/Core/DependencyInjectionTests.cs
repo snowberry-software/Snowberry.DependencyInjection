@@ -39,7 +39,7 @@ public class DependencyInjectionTests
         var exception = Assert.Throws<ServiceTypeNotRegistered>(container.GetRequiredService<IDependentService>);
 
         Assert.Contains(typeof(ITestService).Name, exception.Message);
-        Assert.Equal(0, container.DisposableCount);
+        Assert.Equal(0, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class DependencyInjectionTests
         Assert.NotNull(service.PrimaryDependency);
         Assert.Same(service.PrimaryDependency, service.OptionalDependency);
 
-        Assert.Equal(2, container.DisposableCount);
+        Assert.Equal(2, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class DependencyInjectionTests
         Assert.NotSame(service1, service2);
         Assert.NotSame(service1.PrimaryDependency, service2.PrimaryDependency);
 
-        Assert.Equal(6, container.DisposableCount); // 2 main services + 4 injected dependencies
+        Assert.Equal(6, container.DisposableContainer.DisposableCount); // 2 main services + 4 injected dependencies
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class DependencyInjectionTests
         IDependentService service1, service2;
         using (var scope = container.CreateScope())
         {
-            service1 = scope.ServiceFactory.GetRequiredService<IDependentService>();
-            service2 = scope.ServiceFactory.GetRequiredService<IDependentService>();
+            service1 = scope.ServiceProvider.GetRequiredService<IDependentService>();
+            service2 = scope.ServiceProvider.GetRequiredService<IDependentService>();
         }
 
         // Assert
@@ -138,7 +138,7 @@ public class DependencyInjectionTests
         Assert.NotSame(service1, service2); // Different transient instances
         Assert.Same(service1.PrimaryDependency, service2.PrimaryDependency); // Same singleton dependency
 
-        Assert.Equal(3, container.DisposableCount); // 2 transient services + 1 singleton
+        Assert.Equal(3, container.DisposableContainer.DisposableCount); // 2 transient services + 1 singleton
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class DependencyInjectionTests
         // All dependencies should be the same singleton instances
         Assert.Same(service.TestService, service.DependentService.PrimaryDependency);
 
-        Assert.Equal(3, container.DisposableCount); // 3 different service types
+        Assert.Equal(3, container.DisposableContainer.DisposableCount); // 3 different service types
     }
 
     [Theory]
@@ -195,7 +195,7 @@ public class DependencyInjectionTests
         });
 
         // Should have serviceCount transient services + 1 singleton dependency
-        Assert.Equal(serviceCount + 1, container.DisposableCount);
+        Assert.Equal(serviceCount + 1, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]

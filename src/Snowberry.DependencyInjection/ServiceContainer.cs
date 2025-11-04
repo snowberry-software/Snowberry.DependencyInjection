@@ -1,20 +1,31 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
+using Snowberry.DependencyInjection.Abstractions;
 using Snowberry.DependencyInjection.Abstractions.Exceptions;
+using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
+using Snowberry.DependencyInjection.Helper;
 using Snowberry.DependencyInjection.Implementation;
 using Snowberry.DependencyInjection.Lookup;
 
 namespace Snowberry.DependencyInjection;
 
+/// <inheritdoc cref="IServiceContainer"/>.
 public partial class ServiceContainer : IServiceContainer
 {
     private ConcurrentDictionary<IServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = [];
-    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
-    private volatile bool _isDisposed;
-    private DisposableContainer _disposableContainer = new();
+
+    private bool _isDisposed;
+
+#if NET9_0_OR_GREATER
+    private readonly Lock _lock = new();
+#else
+    private readonly object _lock = new();
+#endif
+
+    private DefaultServiceScopeProvider _rootScope;
+    private IServiceScopeFactory _serviceScopeFactory;
 
     /// <summary>
     /// Creates a container with the default options.
@@ -36,17 +47,13 @@ public partial class ServiceContainer : IServiceContainer
     /// </summary>
     /// <param name="serviceFactory">The service factory that will be used.</param>
     /// <param name="options">The options for the container.</param>
-    public ServiceContainer(IScopedServiceFactory serviceFactory, ServiceContainerOptions options)
+    public ServiceContainer(IServiceFactory serviceFactory, ServiceContainerOptions options)
     {
         ServiceFactory = serviceFactory ?? new DefaultServiceFactory(this);
         Options = options;
-    }
 
-    /// <summary>
-    /// Adds default services to the container.
-    /// </summary>
-    protected virtual void AddDefaultServices()
-    {
+        _serviceScopeFactory = new DefaultServiceScopeFactory(this);
+        _rootScope = new(this, isRootScope: true);
     }
 
     /// <summary>
@@ -58,19 +65,13 @@ public partial class ServiceContainer : IServiceContainer
         if (_isDisposed)
             return true;
 
-        _lock.EnterWriteLock();
-        try
+        lock (_lock)
         {
             if (_isDisposed)
                 return true;
 
             _isDisposed = true;
-            ServiceFactory.NotifyScopeDisposed(null);
             return false;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
         }
     }
 
@@ -82,17 +83,10 @@ public partial class ServiceContainer : IServiceContainer
         if (DisposeCore())
             return;
 
-        _lock.EnterWriteLock();
-        try
+        lock (_lock)
         {
-            _disposableContainer.Dispose();
+            _rootScope.Dispose();
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-
-        _lock.Dispose();
     }
 
 #if NETCOREAPP
@@ -105,54 +99,14 @@ public partial class ServiceContainer : IServiceContainer
             return;
 
         ValueTask disposeTask;
-        _lock.EnterWriteLock();
-        try
+        lock (_lock)
         {
-            disposeTask = _disposableContainer.DisposeAsync();
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            disposeTask = _rootScope.DisposeAsync();
         }
 
         await disposeTask.ConfigureAwait(false);
-
-        _lock.Dispose();
     }
 #endif
-
-    /// <inheritdoc/>
-    public void RegisterDisposable(IDisposable disposable)
-    {
-        RegisterDisposable((object)disposable);
-    }
-
-#if NETCOREAPP
-    /// <inheritdoc/>
-    public void RegisterDisposable(IAsyncDisposable disposable)
-    {
-        RegisterDisposable((object)disposable);
-    }
-#endif
-
-    /// <inheritdoc/>
-    public void RegisterDisposable(object disposable)
-    {
-        _ = disposable ?? throw new ArgumentNullException(nameof(disposable));
-
-        _lock.EnterWriteLock();
-        try
-        {
-            if (_isDisposed)
-                throw new ObjectDisposedException(nameof(ServiceContainer));
-
-            _disposableContainer.RegisterDisposable(disposable);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
 
     /// <inheritdoc/>
     public IServiceDescriptor? GetOptionalServiceDescriptor(Type serviceType, object? serviceKey)
@@ -162,27 +116,21 @@ public partial class ServiceContainer : IServiceContainer
 
         if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var serviceDescriptor))
         {
-            if (_isDisposed)
-                throw new ObjectDisposedException(nameof(ServiceContainer));
-
+            DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
             return serviceDescriptor;
         }
 
         // If not found and it's not a generic type, return null without locking
         if (serviceType.GenericTypeArguments.Length == 0)
         {
-            if (_isDisposed)
-                throw new ObjectDisposedException(nameof(ServiceContainer));
-
+            DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
             return null;
         }
 
         // For generic types, we need to check for open generic registrations and potentially create new descriptors
-        _lock.EnterUpgradeableReadLock();
-        try
+        lock (_lock)
         {
-            if (_isDisposed)
-                throw new ObjectDisposedException(nameof(ServiceContainer));
+            DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
 
             // Double-check if the service was registered while we were waiting for the lock
             if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out serviceDescriptor))
@@ -194,28 +142,12 @@ public partial class ServiceContainer : IServiceContainer
             // Check if we have an open generic registration
             if (_serviceDescriptorMapping.TryGetValue(genericServiceIdentifier, out serviceDescriptor))
             {
-                _lock.EnterWriteLock();
-                try
-                {
-                    // Triple-check after acquiring write lock (other thread might have added it)
-                    if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var existingDescriptor))
-                        return existingDescriptor;
-
-                    var newServiceDescriptor = serviceDescriptor.CloneFor(serviceType);
-                    _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newServiceDescriptor, (_, _) => newServiceDescriptor);
-                    return newServiceDescriptor;
-                }
-                finally
-                {
-                    _lock.ExitWriteLock();
-                }
+                var newServiceDescriptor = serviceDescriptor.CloneFor(serviceType);
+                _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, newServiceDescriptor, (_, _) => newServiceDescriptor);
+                return newServiceDescriptor;
             }
 
             return null;
-        }
-        finally
-        {
-            _lock.ExitUpgradeableReadLock();
         }
     }
 
@@ -224,118 +156,178 @@ public partial class ServiceContainer : IServiceContainer
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
         var descriptor = GetOptionalServiceDescriptor(serviceType, serviceKey);
-
         return descriptor ?? throw new ServiceTypeNotRegistered(serviceType);
     }
 
     /// <inheritdoc/>
     public IServiceDescriptor GetServiceDescriptor<T>(object? serviceKey)
     {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
         return GetServiceDescriptor(typeof(T), serviceKey);
     }
 
     /// <inheritdoc/>
     public IServiceDescriptor? GetOptionalServiceDescriptor<T>(object? serviceKey)
     {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
         return GetOptionalServiceDescriptor(typeof(T), serviceKey);
-    }
-
-    /// <inheritdoc/>
-    public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, Type[]? genericTypeParameters = null)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.CreateInstance(type, genericTypeParameters);
-    }
-
-    /// <inheritdoc/>
-    [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
-    [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
-    public T CreateInstance<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(Type[]? genericTypeParameters = null)
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        return ServiceFactory.CreateInstance<T>(genericTypeParameters);
-    }
-
-    /// <inheritdoc/>
-    public IScope CreateScope()
-    {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
-
-        var scope = new Scope();
-        scope.SetServiceFactory(new ScopeServiceFactory(scope, ServiceFactory));
-        ServiceFactory.NotifyScopeCreated(scope);
-        return scope;
     }
 
     /// <inheritdoc/>
     public object? GetService(Type serviceType)
     {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
+        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        return ServiceFactory.GetService(serviceType);
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
+        return GetKeyedService(serviceType, RootScope, serviceKey: null);
     }
 
     /// <inheritdoc/>
     public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
-        if (_isDisposed)
-            throw new ObjectDisposedException(nameof(ServiceContainer));
+        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
 
-        return ServiceFactory.GetKeyedService(serviceType, serviceKey);
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
+        return GetKeyedService(serviceType, RootScope, serviceKey);
     }
 
-    /// <inheritdoc/>
-    public ConstructorInfo? GetConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type instanceType)
+    internal object? GetKeyedService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
     {
-        return ServiceFactory.GetConstructor(instanceType);
+        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
+        _ = scope ?? throw new ArgumentNullException(nameof(scope));
+
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
+
+        if (serviceKey == null && IsBuiltInService(serviceType))
+            return GetBuiltInService(serviceType, scope, serviceKey);
+
+        var descriptor = GetOptionalServiceDescriptor(serviceType, serviceKey);
+
+        if (descriptor == null)
+            return null;
+
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+        return GetInstanceFromDescriptor(serviceIdentifier, descriptor, scope);
+    }
+
+    private object? GetBuiltInService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
+    {
+        if (typeof(IServiceProvider).IsAssignableFrom(serviceType))
+            return scope;
+
+        if (typeof(IScope).IsAssignableFrom(serviceType))
+            return scope;
+
+        if (typeof(IServiceScopeFactory).IsAssignableFrom(serviceType))
+            return _serviceScopeFactory;
+
+        if (typeof(IServiceFactory).IsAssignableFrom(serviceType))
+            return ServiceFactory;
+
+        throw new NotImplementedException($"Built-in service of type '{serviceType.FullName}' is not implemented.");
+    }
+
+    private static bool IsBuiltInService(Type serviceType)
+    {
+        return typeof(IServiceProvider).IsAssignableFrom(serviceType)
+            || typeof(IScope).IsAssignableFrom(serviceType)
+            || typeof(IServiceScopeFactory).IsAssignableFrom(serviceType)
+            || typeof(IServiceFactory).IsAssignableFrom(serviceType);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    private object GetInstanceFromDescriptor(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, IScope scope)
+    {
+        _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
+        _ = scope ?? throw new ArgumentNullException(nameof(scope));
+
+        DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
+
+        switch (serviceDescriptor.Lifetime)
+        {
+            case ServiceLifetime.Singleton:
+
+                // NOTE(VNC): Only register the disposable of the singleton if no explicit instance has been set before.
+                if (serviceDescriptor.SingletonInstance == null)
+                {
+                    lock (_lock)
+                    {
+                        if (serviceDescriptor.SingletonInstance == null)
+                        {
+                            serviceDescriptor.SingletonInstance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
+                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+
+                            if (serviceDescriptor.SingletonInstance.IsDisposable())
+                                scope.DisposableContainer.RegisterDisposable(serviceDescriptor.SingletonInstance);
+                        }
+                    }
+                }
+
+                return serviceDescriptor.SingletonInstance;
+
+            case ServiceLifetime.Transient:
+
+                object? transientInstance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
+                    ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+
+                if (transientInstance.IsDisposable())
+                    scope.DisposableContainer.RegisterDisposable(transientInstance);
+
+                return transientInstance;
+
+            case ServiceLifetime.Scoped:
+                {
+                    bool resolved = scope.TryGetScopedInstance(serviceIdentifier, out object? instance);
+
+                    if (resolved)
+                        return instance!;
+
+                    lock (_lock)
+                    {
+                        if ((resolved = scope.TryGetScopedInstance(serviceIdentifier, out instance)) == false)
+                        {
+                            instance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
+                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+
+                            if (instance.IsDisposable())
+                                scope.DisposableContainer.RegisterDisposable(instance);
+
+                            scope.AddCached(serviceIdentifier, instance);
+                        }
+                    }
+
+                    return instance!;
+                }
+
+            default:
+                return ThrowHelper.ThrowServiceLifetimeNotImplemented(serviceDescriptor.Lifetime);
+        }
     }
 
     /// <summary>
     /// The service factory that will be used.
     /// </summary>
-    public IScopedServiceFactory ServiceFactory { get; }
+    public IServiceFactory ServiceFactory { get; }
 
     /// <inheritdoc/>
     public IServiceDescriptor[] GetServiceDescriptors()
     {
-        _lock.EnterReadLock();
-        try
+        lock (_lock)
         {
             return [.. _serviceDescriptorMapping.Values];
-        }
-        finally
-        {
-            _lock.ExitReadLock();
         }
     }
 
     /// <inheritdoc/>
     public IEnumerator<IServiceDescriptor> GetEnumerator()
     {
-        _lock.EnterReadLock();
-        try
+        lock (_lock)
         {
             return _serviceDescriptorMapping.Values.GetEnumerator();
-        }
-        finally
-        {
-            _lock.ExitReadLock();
         }
     }
 
@@ -350,31 +342,9 @@ public partial class ServiceContainer : IServiceContainer
     {
         get
         {
-            _lock.EnterReadLock();
-            try
+            lock (_lock)
             {
                 return _serviceDescriptorMapping.Count;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
-
-    /// <inheritdoc/>
-    public int DisposableCount
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return _disposableContainer.DisposableCount;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
             }
         }
     }
@@ -390,5 +360,25 @@ public partial class ServiceContainer : IServiceContainer
     public bool AreRegisteredServicesReadOnly => (Options & ServiceContainerOptions.ReadOnly) == ServiceContainerOptions.ReadOnly;
 
     /// <inheritdoc/>
-    public bool IsDisposed => _isDisposed;
+    public bool IsDisposed
+    {
+        get
+        {
+            if (_isDisposed)
+                return true;
+
+            lock (_lock)
+            {
+                return _isDisposed;
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public IDisposableContainer DisposableContainer => RootScope.DisposableContainer;
+
+    /// <summary>
+    /// Gets the root scope.
+    /// </summary>
+    internal DefaultServiceScopeProvider RootScope => _rootScope;
 }

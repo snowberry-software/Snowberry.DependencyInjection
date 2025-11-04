@@ -284,13 +284,13 @@ public class KeyedServiceInjectionTests
         // Act
         using (var scope1 = container.CreateScope())
         {
-            scopedService1 = scope1.ServiceFactory.GetRequiredService<KeyedConstructorInjectionService>();
-            scopedService2 = scope1.ServiceFactory.GetRequiredService<KeyedConstructorInjectionService>();
+            scopedService1 = scope1.ServiceProvider.GetRequiredService<KeyedConstructorInjectionService>();
+            scopedService2 = scope1.ServiceProvider.GetRequiredService<KeyedConstructorInjectionService>();
         }
 
         using (var scope2 = container.CreateScope())
         {
-            separateScopeService = scope2.ServiceFactory.GetRequiredService<KeyedConstructorInjectionService>();
+            separateScopeService = scope2.ServiceProvider.GetRequiredService<KeyedConstructorInjectionService>();
         }
 
         // Assert

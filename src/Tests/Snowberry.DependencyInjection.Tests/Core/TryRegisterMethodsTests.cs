@@ -315,8 +315,8 @@ public class TryRegisterMethodsTests
         Assert.True(container.IsServiceRegistered<ITestService>(null));
 
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.Same(service1, service2); // Scoped should reuse instance within scope
     }
 
@@ -333,7 +333,7 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.False(result);
         using var scope = container.CreateScope();
-        var service = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.IsType<TestService>(service);
     }
 
@@ -349,8 +349,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<TestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<TestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<TestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<TestService>();
         Assert.Same(service1, service2);
     }
 
@@ -371,8 +371,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<ITestService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<ITestService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<ITestService>();
         Assert.Same(service1, service2);
         Assert.Equal("ScopedInstance1", service1.Name);
         Assert.Equal(1, factoryCallCount);
@@ -412,8 +412,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredService<IDependentService>();
-        var service2 = scope.ServiceFactory.GetRequiredService<IDependentService>();
+        var service1 = scope.ServiceProvider.GetRequiredService<IDependentService>();
+        var service2 = scope.ServiceProvider.GetRequiredService<IDependentService>();
         Assert.Same(service1, service2);
     }
 
@@ -426,11 +426,11 @@ public class TryRegisterMethodsTests
 
         // Act & Assert
         using var scope1 = container.CreateScope();
-        var service1 = scope1.ServiceFactory.GetRequiredService<ITestService>();
+        var service1 = scope1.ServiceProvider.GetRequiredService<ITestService>();
         service1.Name = "Scope1";
 
         using var scope2 = container.CreateScope();
-        var service2 = scope2.ServiceFactory.GetRequiredService<ITestService>();
+        var service2 = scope2.ServiceProvider.GetRequiredService<ITestService>();
         service2.Name = "Scope2";
 
         Assert.NotSame(service1, service2);
@@ -506,8 +506,8 @@ public class TryRegisterMethodsTests
         // Assert
         Assert.True(result);
         using var scope = container.CreateScope();
-        var service1 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
-        var service2 = scope.ServiceFactory.GetRequiredKeyedService<ITestService>(serviceKey);
+        var service1 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
+        var service2 = scope.ServiceProvider.GetRequiredKeyedService<ITestService>(serviceKey);
         Assert.Same(service1, service2);
     }
 

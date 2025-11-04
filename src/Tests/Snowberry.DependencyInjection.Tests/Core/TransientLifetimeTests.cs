@@ -25,7 +25,7 @@ public class TransientLifetimeTests
         Assert.NotSame(service1, service2);
         Assert.IsType<TestService>(service1);
         Assert.IsType<TestService>(service2);
-        Assert.Equal(2, container.DisposableCount);
+        Assert.Equal(2, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class TransientLifetimeTests
         Assert.NotSame(service1, service2);
         Assert.IsType<TestService>(service1);
         Assert.IsType<TestService>(service2);
-        Assert.Equal(2, container.DisposableCount);
+        Assert.Equal(2, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class TransientLifetimeTests
         Assert.Equal("Instance_1", service1.Name);
         Assert.Equal("Instance_2", service2.Name);
         Assert.Equal(2, callCount);
-        Assert.Equal(2, container.DisposableCount);
+        Assert.Equal(2, container.DisposableContainer.DisposableCount);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class TransientLifetimeTests
             service2 = (TestService)container.GetRequiredService<ITestService>();
             service3 = container.GetRequiredService<TestService>();
 
-            Assert.Equal(3, container.DisposableCount);
+            Assert.Equal(3, container.DisposableContainer.DisposableCount);
         }
 
         // Assert
@@ -153,7 +153,7 @@ public class TransientLifetimeTests
         }
 
         // Assert
-        Assert.Equal(instanceCount, container.DisposableCount);
+        Assert.Equal(instanceCount, container.DisposableContainer.DisposableCount);
         Assert.Equal(instanceCount, services.Count);
 
         // Verify all instances are unique
