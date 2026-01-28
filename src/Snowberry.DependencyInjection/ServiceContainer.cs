@@ -217,6 +217,15 @@ public partial class ServiceContainer : IServiceContainer
 
     private object? GetBuiltInService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
     {
+        if (typeof(IServiceContainer).IsAssignableFrom(serviceType))
+            return this;
+
+        if (typeof(IServiceRegistry).IsAssignableFrom(serviceType))
+            return this;
+
+        if (typeof(IServiceDescriptorReceiver).IsAssignableFrom(serviceType))
+            return this;
+
         if (typeof(IServiceProvider).IsAssignableFrom(serviceType))
             return scope;
 
@@ -234,7 +243,10 @@ public partial class ServiceContainer : IServiceContainer
 
     private static bool IsBuiltInService(Type serviceType)
     {
-        return typeof(IServiceProvider).IsAssignableFrom(serviceType)
+        return typeof(IServiceContainer).IsAssignableFrom(serviceType)
+            || typeof(IServiceRegistry).IsAssignableFrom(serviceType)
+            || typeof(IServiceDescriptorReceiver).IsAssignableFrom(serviceType)
+            || typeof(IServiceProvider).IsAssignableFrom(serviceType)
             || typeof(IScope).IsAssignableFrom(serviceType)
             || typeof(IServiceScopeFactory).IsAssignableFrom(serviceType)
             || typeof(IServiceFactory).IsAssignableFrom(serviceType);

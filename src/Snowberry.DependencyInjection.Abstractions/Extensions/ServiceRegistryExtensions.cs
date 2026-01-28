@@ -68,13 +68,13 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Singleton(typeof(T), typeof(T), singletonInstance: null);
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
 
         return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
@@ -88,13 +88,13 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterSingleton<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Singleton(typeof(T), typeof(T), singletonInstance: null);
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
 
         return TryRegister(serviceRegistry, descriptor, serviceKey: serviceKey);
     }
@@ -285,13 +285,14 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Transient(typeof(T), typeof(T));
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
+
 
         return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
@@ -306,13 +307,13 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterTransient<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Transient(typeof(T), typeof(T));
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
 
         return TryRegister(serviceRegistry, descriptor, serviceKey: serviceKey);
     }
@@ -437,13 +438,13 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns>The current <see cref="IServiceRegistry"/> instance for method chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static IServiceRegistry RegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static IServiceRegistry RegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Scoped(typeof(T), typeof(T));
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
 
         return serviceRegistry.Register(descriptor, serviceKey: serviceKey);
     }
@@ -458,13 +459,13 @@ public static class ServiceRegistryExtensions
     /// <typeparam name="T">The type of the service to register.</typeparam>
     /// <returns><c>true</c> if the service was successfully registered; <c>false</c> if the service type was already registered.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceRegistry"/> or <paramref name="instanceFactory"/> is null.</exception>
-    public static bool TryRegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory instanceFactory, object? serviceKey = null)
+    public static bool TryRegisterScoped<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceRegistry serviceRegistry, ServiceInstanceFactory<T> instanceFactory, object? serviceKey = null)
     {
         _ = serviceRegistry ?? throw new ArgumentNullException(nameof(serviceRegistry));
         _ = instanceFactory ?? throw new ArgumentNullException(nameof(instanceFactory));
 
         var descriptor = ServiceDescriptor.Scoped(typeof(T), typeof(T));
-        descriptor.InstanceFactory = instanceFactory;
+        descriptor.InstanceFactory = (serviceProvider, serviceKey) => instanceFactory(serviceProvider, serviceKey)!;
 
         return TryRegister(serviceRegistry, descriptor, serviceKey: serviceKey);
     }
