@@ -7,6 +7,7 @@ using Snowberry.DependencyInjection.Abstractions.Exceptions;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
 using Snowberry.DependencyInjection.Abstractions.Helper;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
+using Snowberry.DependencyInjection.Implementation;
 
 namespace Snowberry.DependencyInjection.Lookup;
 
@@ -130,7 +131,8 @@ public partial class DefaultServiceFactory : IServiceFactory
     internal Func<DefaultServiceScopeProvider, object> CompileNode(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type,
         Type[]? genericTypeArguments,
-        ChildResolverFactory resolveChild)
+        ChildResolverFactory resolveChild,
+        Func<Type, object?, Type?>? shouldInline = null)
     {
         _ = type ?? throw new ArgumentNullException(nameof(type));
 
@@ -155,15 +157,12 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         var scopeParameter = Expression.Parameter(typeof(DefaultServiceScopeProvider), "scope");
 
-        // Constructor arguments: each resolved via its captured child resolver (or baked throw/default).
+        // Constructor arguments: each resolved via its captured child resolver (or, when frozen, an inlined
+        // `new` for a simple transient child — see BuildArgumentExpression).
         var parameters = metadata.Parameters;
         var argumentExpressions = new Expression[parameters.Length];
         for (int i = 0; i < parameters.Length; i++)
-        {
-            var parameter = parameters[i];
-            var child = resolveChild(parameter.ParameterType, parameter.ServiceKey);
-            argumentExpressions[i] = BuildDependencyExpression(child, parameter.ParameterType, parameter.DefaultValue, scopeParameter);
-        }
+            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting: null);
 
         var newExpression = Expression.New(constructor, argumentExpressions);
 
@@ -238,6 +237,132 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         // Required + unregistered: throw ServiceTypeNotRegistered(targetType), typed as targetType so it fits the arg slot.
         return Expression.Throw(Expression.New(_serviceNotRegisteredCtor, Expression.Constant(targetType, typeof(Type))), targetType);
+    }
+
+    /// <summary>
+    /// Builds a constructor-argument expression. In frozen mode (<paramref name="shouldInline"/> non-null), a
+    /// simple inlinable transient dependency is constructed INLINE — its <c>new</c> is emitted recursively
+    /// instead of a delegate invoke — eliminating the per-node hop. All other dependencies (scoped, singleton,
+    /// disposable/property-bearing transients, factories, built-ins, unregistered) go through the captured child
+    /// resolver exactly as in mutable mode.
+    /// </summary>
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation whose annotated metadata is preserved through the closure that produced it.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    private Expression BuildArgumentExpression(ParameterCacheInfo parameter, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?>? shouldInline, List<ServiceIdentifier>? inlineVisiting)
+    {
+        if (shouldInline != null)
+        {
+            var inlineType = shouldInline(parameter.ParameterType, parameter.ServiceKey);
+            if (inlineType != null)
+            {
+                var identifier = new ServiceIdentifier(parameter.ParameterType, parameter.ServiceKey);
+                inlineVisiting ??= new List<ServiceIdentifier>();
+
+                // Backstop for a transient cycle reached with validation disabled (Freeze(validate: false)).
+                // Normally Freeze() validates first and rejects cyclic graphs before freezing. The ordered list
+                // gives the cycle path for the exception message.
+                if (inlineVisiting.Contains(identifier))
+                {
+                    var path = new List<Type>(inlineVisiting.Count + 1);
+                    for (int i = 0; i < inlineVisiting.Count; i++)
+                        path.Add(inlineVisiting[i].ServiceType);
+                    path.Add(parameter.ParameterType);
+                    throw new CircularDependencyException(parameter.ParameterType, path);
+                }
+
+                inlineVisiting.Add(identifier);
+                try
+                {
+                    var inlinedNew = BuildInlinedConstruct(inlineType, scopeParameter, resolveChild, shouldInline, inlineVisiting);
+                    return Expression.Convert(inlinedNew, parameter.ParameterType);
+                }
+                finally
+                {
+                    inlineVisiting.RemoveAt(inlineVisiting.Count - 1);
+                }
+            }
+        }
+
+        var child = resolveChild(parameter.ParameterType, parameter.ServiceKey);
+        return BuildDependencyExpression(child, parameter.ParameterType, parameter.DefaultValue, scopeParameter);
+    }
+
+    /// <summary>
+    /// Recursively builds the <c>new T(...)</c> expression for an inlinable transient (no <c>[Inject]</c>
+    /// properties, non-disposable, constructor-backed — guaranteed by <see cref="IsInlinableTransientImplementation"/>),
+    /// inlining its inlinable transient children in turn. Pure construction: no property block, no disposal
+    /// tracking (the type is non-disposable).
+    /// </summary>
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation; its constructor metadata is resolved via the same annotated path as construction.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    private NewExpression BuildInlinedConstruct([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type inlineType, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?> shouldInline, List<ServiceIdentifier> inlineVisiting)
+    {
+        var metadata = GetTypeMetadata(inlineType);
+        var constructor = metadata.Constructor!; // IsInlinableTransientImplementation guarantees a usable constructor
+
+        var parameters = metadata.Parameters;
+        var argumentExpressions = new Expression[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting);
+
+        return Expression.New(constructor, argumentExpressions);
+    }
+
+    /// <summary>
+    /// Whether a closed implementation type is a "simple" transient that can be constructed inline in frozen
+    /// mode: it has a usable public constructor, is NOT disposable (so it needs no per-instance disposal
+    /// tracking), and has NO <c>[Inject]</c> properties (so its construction is a pure <c>new</c>).
+    /// </summary>
+    internal bool IsInlinableTransientImplementation([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type closedImplementationType)
+    {
+        if (closedImplementationType.IsInterface || closedImplementationType.IsAbstract)
+            return false;
+
+        if (typeof(IDisposable).IsAssignableFrom(closedImplementationType))
+            return false;
+
+#if NETCOREAPP
+        if (typeof(IAsyncDisposable).IsAssignableFrom(closedImplementationType))
+            return false;
+#endif
+
+        var metadata = GetTypeMetadata(closedImplementationType);
+        return metadata.Constructor != null && metadata.InjectableProperties.Length == 0;
+    }
+
+    /// <summary>
+    /// Exposes the construct-time dependencies (constructor parameters + <c>[Inject]</c> properties) of a closed
+    /// implementation type for eager validation. Returns <c>false</c> when the type has no usable public
+    /// constructor. Does not construct anything.
+    /// </summary>
+    internal bool TryGetDependencies(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type closedImplementationType,
+        out IReadOnlyList<ServiceDependencyInfo> dependencies)
+    {
+        var metadata = GetTypeMetadata(closedImplementationType);
+        if (metadata.Constructor == null)
+        {
+            dependencies = [];
+            return false;
+        }
+
+        var list = new List<ServiceDependencyInfo>(metadata.Parameters.Length + metadata.InjectableProperties.Length);
+
+        // Constructor parameters: required unless they carry a (non-null) default — the same DefaultValue != null
+        // proxy used when resolving (an explicit null default is treated as required).
+        foreach (var parameter in metadata.Parameters)
+            list.Add(new ServiceDependencyInfo(parameter.ParameterType, parameter.ServiceKey, parameter.DefaultValue == null, parameter.Name, isProperty: false));
+
+        // [Inject] properties: required per the attribute.
+        foreach (var property in metadata.InjectableProperties)
+            list.Add(new ServiceDependencyInfo(property.PropertyType, property.ServiceKey, property.IsRequired, property.PropertyName, isProperty: true));
+
+        dependencies = list;
+        return true;
     }
 
     /// <summary>

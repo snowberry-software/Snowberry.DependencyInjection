@@ -23,7 +23,10 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
-    private Dictionary<ServiceIdentifier, object>? _scopedInstances;
+    // Copy-on-write scoped-instance cache: the published dictionary is treated as IMMUTABLE — writers (under
+    // _lock) publish a fresh clone, so warm reads need no lock. `volatile` gives readers the published snapshot
+    // with correct memory ordering.
+    private volatile Dictionary<ServiceIdentifier, object>? _scopedInstances;
 
     public DefaultServiceScopeProvider(ServiceContainer rootProvider, bool isRootScope)
     {
@@ -43,18 +46,16 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     /// </summary>
     internal bool TryGetScopedInstance(in ServiceIdentifier serviceIdentifier, [NotNullWhen(true)] out object? instance)
     {
-        lock (_lock)
-        {
-            DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
-            if (_scopedInstances == null)
-            {
-                instance = null;
-                return false;
-            }
+        // Lock-free read of the copy-on-write snapshot. The published dictionary is never mutated in place
+        // (writers publish a fresh clone under _lock), so reading it concurrently with a writer is safe.
+        var snapshot = _scopedInstances;
+        if (snapshot != null && snapshot.TryGetValue(serviceIdentifier, out instance))
+            return true;
 
-            return _scopedInstances.TryGetValue(serviceIdentifier, out instance);
-        }
+        instance = null;
+        return false;
     }
 
     /// <inheritdoc/>
@@ -72,9 +73,7 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
         lock (_lock)
         {
             DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
-
-            _scopedInstances ??= new(4, ServiceIdentifierComparer.Instance);
-            _scopedInstances[serviceIdentifier] = instance;
+            _scopedInstances = CloneWith(_scopedInstances, serviceIdentifier, instance);
         }
     }
 
@@ -91,15 +90,30 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
         {
             DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
-            _scopedInstances ??= new(4, ServiceIdentifierComparer.Instance);
-
-            if (_scopedInstances.TryGetValue(serviceIdentifier, out existing))
+            var current = _scopedInstances;
+            if (current != null && current.TryGetValue(serviceIdentifier, out existing))
                 return false;
 
-            _scopedInstances[serviceIdentifier] = instance;
+            _scopedInstances = CloneWith(current, serviceIdentifier, instance);
             existing = null;
             return true;
         }
+    }
+
+    /// <summary>
+    /// Copy-on-write helper: returns a new dictionary containing <paramref name="current"/>'s entries plus the
+    /// added one. The previous dictionary is left untouched so concurrent lock-free readers stay safe. Called
+    /// only under <see cref="_lock"/> (writers are serialized; the per-scope clone cost is paid on the cold path
+    /// and is bounded by the number of distinct scoped services resolved in this scope).
+    /// </summary>
+    private static Dictionary<ServiceIdentifier, object> CloneWith(Dictionary<ServiceIdentifier, object>? current, in ServiceIdentifier serviceIdentifier, object instance)
+    {
+        var next = current == null
+            ? new Dictionary<ServiceIdentifier, object>(1, ServiceIdentifierComparer.Instance)
+            : new Dictionary<ServiceIdentifier, object>(current, ServiceIdentifierComparer.Instance);
+
+        next[serviceIdentifier] = instance;
+        return next;
     }
 
     /// <summary>

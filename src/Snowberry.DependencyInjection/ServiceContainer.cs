@@ -38,6 +38,10 @@ public partial class ServiceContainer : IServiceContainer
     private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new();
     private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(ServiceIdentifierComparer.Instance);
 
+    // Tier 3 (opt-in): once frozen, registrations are locked and the compiled-resolver graph is permanent, which
+    // lets the build inline pure-transient subtrees (no per-node delegate hop). Default is false (mutable).
+    private volatile bool _frozen;
+
     private bool _isDisposed;
 
 #if NET9_0_OR_GREATER
@@ -474,14 +478,51 @@ public partial class ServiceContainer : IServiceContainer
         // Tier 2: compile a node that invokes the children's resolvers directly (no per-argument re-dispatch).
         if (ServiceFactory is DefaultServiceFactory defaultFactory)
         {
+            // Tier 3 (frozen): additionally inline simple-transient children's construction (no per-node hop).
+            Func<Type, object?, Type?>? shouldInline = _frozen
+                ? (dependencyType, dependencyKey) => FrozenInlineType(dependencyType, dependencyKey, defaultFactory)
+                : null;
+
             return defaultFactory.CompileNode(
                 serviceDescriptor.ImplementationType,
                 closedGenericArguments,
-                (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath));
+                (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath),
+                shouldInline);
         }
 
         // Custom IServiceFactory: fall back to by-type construction (children re-dispatch through GetKeyedService).
         return scope => ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, closedGenericArguments);
+    }
+
+    /// <summary>
+    /// Frozen-mode inline selector: returns the closed implementation type to inline when the dependency is a
+    /// simple transient (constructor-backed, non-disposable, no <c>[Inject]</c> properties), else <c>null</c>
+    /// (the dependency goes through its captured resolver — preserving scoped/singleton caching, factories,
+    /// disposal tracking, built-ins, and unregistered throw/default behavior).
+    /// </summary>
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The closed implementation type carries the same DynamicallyAccessedMembers requirements as the descriptor's annotated ImplementationType.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    private Type? FrozenInlineType(Type dependencyType, object? dependencyKey, DefaultServiceFactory defaultFactory)
+    {
+        if (dependencyKey is null && IsBuiltInService(dependencyType))
+            return null;
+
+        var dependencyIdentifier = new ServiceIdentifier(dependencyType, dependencyKey);
+        var dependencyDescriptor = GetOptionalServiceDescriptor(dependencyIdentifier);
+        if (dependencyDescriptor == null)
+            return null;
+
+        if (dependencyDescriptor.Lifetime != ServiceLifetime.Transient || dependencyDescriptor.InstanceFactory != null)
+            return null;
+
+        var implementationType = dependencyDescriptor.ImplementationType;
+        var closedImplementationType = implementationType.IsGenericTypeDefinition
+            ? implementationType.MakeGenericType(dependencyIdentifier.ServiceType.GenericTypeArguments)
+            : implementationType;
+
+        return defaultFactory.IsInlinableTransientImplementation(closedImplementationType) ? closedImplementationType : null;
     }
 
     private Func<DefaultServiceScopeProvider, object?> BuildTransientResolver(Func<DefaultServiceScopeProvider, object> construct)
@@ -663,6 +704,12 @@ public partial class ServiceContainer : IServiceContainer
     /// Gets whether scope validation is enabled.
     /// </summary>
     public bool ValidateScopes => (Options & ServiceContainerOptions.ValidateScopes) == ServiceContainerOptions.ValidateScopes;
+
+    /// <summary>
+    /// Gets whether the container has been frozen via <see cref="Freeze"/>. A frozen container rejects further
+    /// registration changes and uses the immutable, fully-inlined frozen resolver pipeline.
+    /// </summary>
+    public bool IsFrozen => _frozen;
 
     /// <inheritdoc/>
     public bool IsDisposed

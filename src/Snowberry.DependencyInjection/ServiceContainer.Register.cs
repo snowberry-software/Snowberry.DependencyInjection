@@ -34,6 +34,9 @@ public partial class ServiceContainer
 
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
+        if (_frozen)
+            throw new ServiceRegistryReadOnlyException("The container is frozen; registrations cannot be added, removed, or overwritten.");
+
         if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.Lifetime != ServiceLifetime.Singleton)
             throw new ArgumentException("Singleton can't be used in non-singleton lifetime!", nameof(serviceDescriptor));
 
@@ -81,6 +84,9 @@ public partial class ServiceContainer
     /// </summary>
     private ServiceContainer UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
     {
+        if (_frozen)
+            throw new ServiceRegistryReadOnlyException($"The container is frozen; '{serviceType.Name}' cannot be unregistered.");
+
         if (AreRegisteredServicesReadOnly)
             throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
 

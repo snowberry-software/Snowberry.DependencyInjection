@@ -76,6 +76,71 @@ public class TransientResolutionBenchmarks
 #endif
 }
 
+/// <summary>Frozen (opt-in lock-in) transient resolution — the full-graph-inlining pipeline.</summary>
+public class FrozenResolutionBenchmarks
+{
+    private ServiceContainer _container = null!;
+#if BENCH_COMPARE
+    private IServiceProvider _ms = null!;
+#endif
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _container = new ServiceContainer();
+        _container.RegisterTransient<IServiceA, ServiceA>();
+        _container.RegisterTransient<IServiceB, ServiceB>();
+
+        _container.RegisterTransient<IChain1, Chain1>();
+        _container.RegisterTransient<IChain2, Chain2>();
+        _container.RegisterTransient<IChain3, Chain3>();
+        _container.RegisterTransient<IChain4, Chain4>();
+        _container.RegisterTransient<IChain5, Chain5>();
+
+        _container.RegisterTransient<IDep1, Dep1>();
+        _container.RegisterTransient<IDep2, Dep2>();
+        _container.RegisterTransient<IDep3, Dep3>();
+        _container.RegisterTransient<IDep4, Dep4>();
+        _container.RegisterTransient<IDep5, Dep5>();
+        _container.RegisterTransient<IDep6, Dep6>();
+        _container.RegisterTransient<IDep7, Dep7>();
+        _container.RegisterTransient<IDep8, Dep8>();
+        _container.RegisterTransient<IWideRoot, WideRoot>();
+
+        _container.Freeze();
+
+#if BENCH_COMPARE
+        var sc = new MsDI.ServiceCollection();
+        MsDI.ServiceCollectionServiceExtensions.AddTransient<IServiceA, ServiceA>(sc);
+        MsDI.ServiceCollectionServiceExtensions.AddTransient<IServiceB, ServiceB>(sc);
+        _ms = MsDI.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(sc);
+#endif
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() => _container.Dispose();
+
+    [Benchmark]
+    public IServiceA Resolve_NoDeps_Frozen() => _container.GetService<IServiceA>()!;
+
+    [Benchmark]
+    public IServiceB Resolve_OneDep_Frozen() => _container.GetService<IServiceB>()!;
+
+    [Benchmark]
+    public IChain5 Resolve_DeepChain_Frozen() => _container.GetService<IChain5>()!;
+
+    [Benchmark]
+    public IWideRoot Resolve_WideDeps_Frozen() => _container.GetService<IWideRoot>()!;
+
+#if BENCH_COMPARE
+    [Benchmark]
+    public IServiceA Ms_Resolve_NoDeps() => MsDI.ServiceProviderServiceExtensions.GetRequiredService<IServiceA>(_ms);
+
+    [Benchmark]
+    public IServiceB Ms_Resolve_OneDep() => MsDI.ServiceProviderServiceExtensions.GetRequiredService<IServiceB>(_ms);
+#endif
+}
+
 /// <summary>Steady-state (warmed) singleton resolution — the common case.</summary>
 public class SingletonResolutionBenchmarks
 {
