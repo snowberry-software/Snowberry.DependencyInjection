@@ -14,13 +14,13 @@ namespace Snowberry.DependencyInjection.Lookup;
 /// <inheritdoc cref="IServiceFactory"/>
 public partial class DefaultServiceFactory : IServiceFactory
 {
-    private static readonly ConcurrentDictionary<Type, TypeMetadata> _typeMetadataCache = new();
+    private static readonly ConcurrentDictionary<Type, TypeMetadata> s_TypeMetadataCache = new();
 
     // Cached constructors used by the Tier 2 node compiler to bake lazy "required dependency not registered" throws.
-    private static readonly ConstructorInfo _serviceNotRegisteredCtor =
+    private static readonly ConstructorInfo s_ServiceNotRegisteredCtor =
         typeof(ServiceTypeNotRegistered).GetConstructor(new[] { typeof(Type) })!;
 
-    private static readonly ConstructorInfo _serviceNotRegisteredWithMessageCtor =
+    private static readonly ConstructorInfo s_ServiceNotRegisteredWithMessageCtor =
         typeof(ServiceTypeNotRegistered).GetConstructor(new[] { typeof(Type), typeof(string) })!;
 
 #if NET9_0_OR_GREATER
@@ -197,7 +197,7 @@ public partial class DefaultServiceFactory : IServiceFactory
             {
                 // Construct ran above; now throw exactly as the runtime loop does for a required-null property.
                 statements.Add(Expression.Throw(Expression.New(
-                    _serviceNotRegisteredWithMessageCtor,
+                    s_ServiceNotRegisteredWithMessageCtor,
                     Expression.Constant(property.PropertyType, typeof(Type)),
                     Expression.Constant($"The required service for the property `{property.PropertyName}` is not registered!"))));
                 break;
@@ -244,7 +244,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         }
 
         // Required + unregistered: throw ServiceTypeNotRegistered(targetType), typed as targetType so it fits the arg slot.
-        return Expression.Throw(Expression.New(_serviceNotRegisteredCtor, Expression.Constant(targetType, typeof(Type))), targetType);
+        return Expression.Throw(Expression.New(s_ServiceNotRegisteredCtor, Expression.Constant(targetType, typeof(Type))), targetType);
     }
 
     /// <summary>
@@ -394,7 +394,7 @@ public partial class DefaultServiceFactory : IServiceFactory
     [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = "The BuildTypeMetadata delegate correctly preserves all DynamicallyAccessedMembers annotations through the GetOrAdd call.")]
     private static TypeMetadata GetTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
-        return _typeMetadataCache.GetOrAdd(type, BuildTypeMetadata);
+        return s_TypeMetadataCache.GetOrAdd(type, BuildTypeMetadata);
     }
 
     /// <summary>

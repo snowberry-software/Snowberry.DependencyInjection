@@ -26,14 +26,14 @@ internal delegate Func<DefaultServiceScopeProvider, object?>? ChildResolverFacto
 /// <inheritdoc cref="IServiceContainer"/>
 public partial class ServiceContainer : IServiceContainer
 {
-    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(ServiceIdentifierComparer.Instance);
+    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(ServiceIdentifierComparer.s_Instance);
 
     // Realized-resolver caches. The dominant null-key case is keyed by Type directly (skips ServiceIdentifier
     // construction + hash on the warm path); keyed services use the ServiceIdentifier cache. Invalidation swaps
     // both fields atomically (see InvalidateResolverCaches); reads capture the field once so a concurrent swap
     // is a benign "just-missed" window. `volatile` gives the swap acquire/release semantics.
     private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new();
-    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(ServiceIdentifierComparer.Instance);
+    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(ServiceIdentifierComparer.s_Instance);
 
     // Tier 3 (opt-in): once frozen, registrations are locked and the compiled-resolver graph is permanent, which
     // lets the build inline pure-transient subtrees (no per-node delegate hop). Default is false (mutable).
@@ -321,11 +321,11 @@ public partial class ServiceContainer : IServiceContainer
     /// <summary>
     /// Caches, per <see cref="Type"/>, whether the type is a built-in service provided by the container.
     /// </summary>
-    private static readonly ConcurrentDictionary<Type, bool> _builtInServiceCache = new();
+    private static readonly ConcurrentDictionary<Type, bool> s_BuiltInServiceCache = new();
 
     private static bool IsBuiltInService(Type serviceType)
     {
-        return _builtInServiceCache.GetOrAdd(serviceType, static type =>
+        return s_BuiltInServiceCache.GetOrAdd(serviceType, static type =>
             typeof(IServiceContainer).IsAssignableFrom(type)
             || typeof(IServiceRegistry).IsAssignableFrom(type)
             || typeof(IServiceDescriptorReceiver).IsAssignableFrom(type)
@@ -666,7 +666,7 @@ public partial class ServiceContainer : IServiceContainer
     private void InvalidateResolverCaches()
     {
         _nullKeyResolvers = new();
-        _keyedResolvers = new(ServiceIdentifierComparer.Instance);
+        _keyedResolvers = new(ServiceIdentifierComparer.s_Instance);
     }
 
     /// <summary>

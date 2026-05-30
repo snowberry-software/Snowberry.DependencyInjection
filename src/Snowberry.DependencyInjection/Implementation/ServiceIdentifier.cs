@@ -100,7 +100,7 @@ public readonly struct ServiceIdentifier : IServiceIdentifier, IEquatable<Servic
 /// </summary>
 internal sealed class ServiceIdentifierComparer : IEqualityComparer<ServiceIdentifier>
 {
-    public static readonly ServiceIdentifierComparer Instance = new();
+    public static readonly ServiceIdentifierComparer s_Instance = new();
 
     public bool Equals(ServiceIdentifier x, ServiceIdentifier y)
     {

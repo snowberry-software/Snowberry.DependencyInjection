@@ -125,8 +125,8 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     private static Dictionary<ServiceIdentifier, object> CloneWith(Dictionary<ServiceIdentifier, object>? current, in ServiceIdentifier serviceIdentifier, object instance)
     {
         var next = current == null
-            ? new Dictionary<ServiceIdentifier, object>(1, ServiceIdentifierComparer.Instance)
-            : new Dictionary<ServiceIdentifier, object>(current, ServiceIdentifierComparer.Instance);
+            ? new Dictionary<ServiceIdentifier, object>(1, ServiceIdentifierComparer.s_Instance)
+            : new Dictionary<ServiceIdentifier, object>(current, ServiceIdentifierComparer.s_Instance);
 
         next[serviceIdentifier] = instance;
         return next;

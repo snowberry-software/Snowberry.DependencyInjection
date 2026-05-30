@@ -110,7 +110,7 @@ public sealed class DisposableService : IDisposableService, IDisposable
 /// </summary>
 public static class Markers
 {
-    public static readonly Type[] ServiceTypes =
+    public static readonly Type[] s_ServiceTypes =
     [
         typeof(IMarker01), typeof(IMarker02), typeof(IMarker03), typeof(IMarker04),
         typeof(IMarker05), typeof(IMarker06), typeof(IMarker07), typeof(IMarker08),
@@ -118,7 +118,7 @@ public static class Markers
         typeof(IMarker13), typeof(IMarker14), typeof(IMarker15), typeof(IMarker16),
     ];
 
-    public static readonly Type[] ImplTypes =
+    public static readonly Type[] s_ImplTypes =
     [
         typeof(Marker01), typeof(Marker02), typeof(Marker03), typeof(Marker04),
         typeof(Marker05), typeof(Marker06), typeof(Marker07), typeof(Marker08),
@@ -126,7 +126,7 @@ public static class Markers
         typeof(Marker13), typeof(Marker14), typeof(Marker15), typeof(Marker16),
     ];
 
-    public const int Count = 16;
+    public const int c_Count = 16;
 }
 
 public interface IMarker01; public sealed class Marker01 : IMarker01;

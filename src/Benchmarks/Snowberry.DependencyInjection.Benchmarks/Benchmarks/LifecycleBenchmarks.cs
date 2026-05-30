@@ -49,21 +49,21 @@ public class RegistrationBenchmarks
     public void RegisterTransient_N()
     {
         for (int i = 0; i < N; i++)
-            _container.Register(ServiceDescriptor.Transient(Markers.ServiceTypes[i], Markers.ImplTypes[i]));
+            _container.Register(ServiceDescriptor.Transient(Markers.s_ServiceTypes[i], Markers.s_ImplTypes[i]));
     }
 
     [Benchmark]
     public void RegisterSingleton_N()
     {
         for (int i = 0; i < N; i++)
-            _container.Register(ServiceDescriptor.Singleton(Markers.ServiceTypes[i], Markers.ImplTypes[i], singletonInstance: null));
+            _container.Register(ServiceDescriptor.Singleton(Markers.s_ServiceTypes[i], Markers.s_ImplTypes[i], singletonInstance: null));
     }
 
     [Benchmark]
     public void RegisterScoped_N()
     {
         for (int i = 0; i < N; i++)
-            _container.Register(ServiceDescriptor.Scoped(Markers.ServiceTypes[i], Markers.ImplTypes[i]));
+            _container.Register(ServiceDescriptor.Scoped(Markers.s_ServiceTypes[i], Markers.s_ImplTypes[i]));
     }
 }
 

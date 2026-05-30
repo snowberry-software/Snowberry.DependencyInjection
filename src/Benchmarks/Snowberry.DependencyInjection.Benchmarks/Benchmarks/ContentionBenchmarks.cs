@@ -12,7 +12,7 @@ namespace Snowberry.DependencyInjection.Benchmarks;
 [ThreadingDiagnoser]
 public class ParallelScopedResolutionBenchmarks
 {
-    private const int ScopesPerThread = 200;
+    private const int c_ScopesPerThread = 200;
 
     [Params(1, 4, 8)]
     public int Threads;
@@ -39,7 +39,7 @@ public class ParallelScopedResolutionBenchmarks
         {
             tasks[t] = Task.Run(() =>
             {
-                for (int i = 0; i < ScopesPerThread; i++)
+                for (int i = 0; i < c_ScopesPerThread; i++)
                 {
                     using var scope = _container.CreateScope();
                     _ = scope.ServiceProvider.GetService<IServiceB>();

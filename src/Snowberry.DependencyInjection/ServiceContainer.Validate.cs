@@ -70,7 +70,7 @@ public partial class ServiceContainer
             snapshot = _serviceDescriptorMapping.ToArray();
         }
 
-        var validatedOk = new HashSet<ServiceIdentifier>(ServiceIdentifierComparer.Instance);
+        var validatedOk = new HashSet<ServiceIdentifier>(ServiceIdentifierComparer.s_Instance);
         var path = new List<ServiceIdentifier>();
 
         foreach (var entry in snapshot)
