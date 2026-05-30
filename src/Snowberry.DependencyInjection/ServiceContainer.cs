@@ -17,7 +17,14 @@ namespace Snowberry.DependencyInjection;
 /// is a single dictionary lookup + this invoke. Must be side-effect-free to build — it may construct
 /// instances only when invoked, never at build time.
 /// </summary>
-internal delegate object? ServiceResolver(DefaultServiceScopeProvider scope);
+/// <summary>
+/// Supplied by the container to the node compiler (Tier 2): returns the child resolver for a constructor
+/// parameter / injectable property dependency, or <c>null</c> when the dependency is not registered (and is not
+/// a built-in). The compiler bakes a throw (required) or the default (optional) for the <c>null</c> case.
+/// A resolver is <c>Func&lt;DefaultServiceScopeProvider, object?&gt;</c> — fully public types, so the compiled
+/// expression that invokes a captured child does not reference a non-public delegate.
+/// </summary>
+internal delegate Func<DefaultServiceScopeProvider, object?>? ChildResolverFactory(Type dependencyType, object? dependencyKey);
 
 /// <inheritdoc cref="IServiceContainer"/>.
 public partial class ServiceContainer : IServiceContainer
@@ -28,8 +35,8 @@ public partial class ServiceContainer : IServiceContainer
     // construction + hash on the warm path); keyed services use the ServiceIdentifier cache. Invalidation swaps
     // both fields atomically (see InvalidateResolverCaches); reads capture the field once so a concurrent swap
     // is a benign "just-missed" window. `volatile` gives the swap acquire/release semantics.
-    private volatile ConcurrentDictionary<Type, ServiceResolver> _nullKeyResolvers = new();
-    private volatile ConcurrentDictionary<ServiceIdentifier, ServiceResolver> _keyedResolvers = new(ServiceIdentifierComparer.Instance);
+    private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new();
+    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(ServiceIdentifierComparer.Instance);
 
     private bool _isDisposed;
 
@@ -250,24 +257,29 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Cold path for a null-key resolve: build the resolver, publish it into the captured generation, invoke.
-    /// A duplicate build under contention is harmless (build is side-effect-free; last writer wins).
+    /// Cold path for a null-key resolve: build (and publish) the resolver eagerly over its subtree, then invoke.
+    /// Both cache generations are captured once so the whole subtree publishes consistently; a concurrent
+    /// invalidation swap just makes this build land in the abandoned generation (harmless — the next resolve
+    /// rebuilds). A duplicate build under contention is harmless (build is side-effect-free; last writer wins).
     /// </summary>
-    private object? BuildAndCacheNullKey(Type serviceType, DefaultServiceScopeProvider scope, ConcurrentDictionary<Type, ServiceResolver> cache)
+    private object? BuildAndCacheNullKey(Type serviceType, DefaultServiceScopeProvider scope, ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache)
     {
-        var resolver = BuildResolver(serviceType, serviceKey: null, rebake: constant => cache[serviceType] = constant);
-        cache[serviceType] = resolver;
-        return resolver(scope);
+        var keyedCache = _keyedResolvers;
+        var resolver = GetOrBuildResolver(serviceType, serviceKey: null, nullKeyCache, keyedCache, new List<ServiceIdentifier>());
+
+        // Unregistered, non-built-in → GetService returns null (only GetRequiredService throws). Not cached, to
+        // keep the cache bounded by registered/dependency identifiers (a later Register rebuilds on next resolve).
+        return resolver is null ? null : resolver(scope);
     }
 
     /// <summary>
     /// Cold path for a keyed resolve. See <see cref="BuildAndCacheNullKey"/>.
     /// </summary>
-    private object? BuildAndCacheKeyed(ServiceIdentifier serviceIdentifier, DefaultServiceScopeProvider scope, ConcurrentDictionary<ServiceIdentifier, ServiceResolver> cache)
+    private object? BuildAndCacheKeyed(ServiceIdentifier serviceIdentifier, DefaultServiceScopeProvider scope, ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache)
     {
-        var resolver = BuildResolver(serviceIdentifier.ServiceType, serviceIdentifier.ServiceKey, rebake: constant => cache[serviceIdentifier] = constant);
-        cache[serviceIdentifier] = resolver;
-        return resolver(scope);
+        var nullKeyCache = _nullKeyResolvers;
+        var resolver = GetOrBuildResolver(serviceIdentifier.ServiceType, serviceIdentifier.ServiceKey, nullKeyCache, keyedCache, new List<ServiceIdentifier>());
+        return resolver is null ? null : resolver(scope);
     }
 
     private object? GetBuiltInService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
@@ -317,40 +329,112 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Cold path: classifies a service (built-in / registered / unregistered) and emits a lifetime-specialized
-    /// <see cref="ServiceResolver"/>. Side-effect-free — it compiles closures only; no instance is constructed
-    /// here (singletons construct lazily on first invoke). <paramref name="rebake"/> lets the singleton resolver
-    /// publish a constant resolver into its cache generation after first construction.
+    /// Returns the resolver for a service from the captured cache generation, building (and publishing) it on a
+    /// miss. Returns <c>null</c> only for an unregistered, non-built-in service — the node compiler then bakes a
+    /// throw for a required dependency or the default for an optional one. Built recursively with eager subtree
+    /// construction; <paramref name="buildPath"/> detects cycles (→ <see cref="CircularDependencyException"/>).
+    /// Side-effect-free: it compiles/captures only and constructs no instance (singletons construct lazily on
+    /// first invoke).
     /// </summary>
-    private ServiceResolver BuildResolver(Type serviceType, object? serviceKey, Action<ServiceResolver> rebake)
+    private Func<DefaultServiceScopeProvider, object?>? GetOrBuildResolver(
+        Type serviceType,
+        object? serviceKey,
+        ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
+        ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
+        List<ServiceIdentifier> buildPath)
     {
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+
+        // Cache check (the same generation captured at the root build), so shared subtrees build once.
+        if (serviceKey is null)
+        {
+            if (nullKeyCache.TryGetValue(serviceType, out var cachedNull))
+                return cachedNull;
+        }
+        else if (keyedCache.TryGetValue(serviceIdentifier, out var cachedKeyed))
+        {
+            return cachedKeyed;
+        }
+
+        Func<DefaultServiceScopeProvider, object?> resolver;
+
         // Built-in services resolve before user registrations, and only for a null key (matches legacy order).
         if (serviceKey is null && IsBuiltInService(serviceType))
-            return scope => GetBuiltInService(serviceType, scope, null);
+        {
+            resolver = scope => GetBuiltInService(serviceType, scope, null);
+        }
+        else
+        {
+            var serviceDescriptor = GetOptionalServiceDescriptor(serviceIdentifier);
+            if (serviceDescriptor == null)
+                return null; // unregistered, non-built-in
 
-        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
-        var serviceDescriptor = GetOptionalServiceDescriptor(serviceIdentifier);
+            // Cycle detection: re-entering an id already on the build path closes a cycle.
+            if (buildPath.Contains(serviceIdentifier))
+                throw new CircularDependencyException(serviceType, BuildCyclePath(buildPath, serviceType));
 
-        // Unregistered → GetService returns null (only the GetRequiredService extension throws). Safe to cache:
-        // any Register/Unregister swaps the whole resolver cache (see InvalidateResolverCaches).
-        if (serviceDescriptor == null)
-            return static _ => null;
+            buildPath.Add(serviceIdentifier);
+            try
+            {
+                resolver = BuildLifetimeResolver(serviceIdentifier, serviceDescriptor, nullKeyCache, keyedCache, buildPath);
+            }
+            finally
+            {
+                buildPath.RemoveAt(buildPath.Count - 1);
+            }
+        }
 
-        // Hoist the closed-generic argument computation out of the per-resolve path (immutable for a descriptor).
-        var closedGenericArguments = GetClosedGenericTypeArguments(serviceDescriptor);
+        // Publish into the captured generation (built-in + registered). Idempotent under contention.
+        if (serviceKey is null)
+            nullKeyCache[serviceType] = resolver;
+        else
+            keyedCache[serviceIdentifier] = resolver;
 
-        // Pass the annotated ImplementationType property directly so its DynamicallyAccessedMembers flow to the
-        // factory call without an intermediate (unannotated) local.
+        return resolver;
+    }
+
+    private static IReadOnlyList<Type> BuildCyclePath(List<ServiceIdentifier> buildPath, Type closing)
+    {
+        var path = new List<Type>(buildPath.Count + 1);
+        for (int i = 0; i < buildPath.Count; i++)
+            path.Add(buildPath[i].ServiceType);
+        path.Add(closing);
+        return path;
+    }
+
+    /// <summary>
+    /// Wraps a node's pure construct delegate with the lifetime behavior (per-scope/singleton caching, locks,
+    /// scope-validation, disposal tracking). The construct is the compiled graph node (Tier 2), a custom
+    /// <c>InstanceFactory</c> call, or the by-type <see cref="IServiceFactory.CreateInstance"/> fallback.
+    /// </summary>
+    private Func<DefaultServiceScopeProvider, object?> BuildLifetimeResolver(
+        ServiceIdentifier serviceIdentifier,
+        IServiceDescriptor serviceDescriptor,
+        ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
+        ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
+        List<ServiceIdentifier> buildPath)
+    {
+        // A pre-set singleton instance (e.g. RegisterSingleton<T>(instance)) needs NO construction — its
+        // ImplementationType is typically the service interface, so building a construct would fail. Return the
+        // constant directly; the instance is never constructed and never tracked for disposal.
+        if (serviceDescriptor.Lifetime == ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance != null)
+        {
+            object preset = serviceDescriptor.SingletonInstance;
+            return _ => preset;
+        }
+
+        var construct = BuildConstruct(serviceIdentifier, serviceDescriptor, nullKeyCache, keyedCache, buildPath);
+
         switch (serviceDescriptor.Lifetime)
         {
-            case ServiceLifetime.Singleton:
-                return BuildSingletonResolver(serviceIdentifier, serviceDescriptor, serviceDescriptor.ImplementationType, closedGenericArguments, rebake);
-
             case ServiceLifetime.Transient:
-                return BuildTransientResolver(serviceIdentifier, serviceDescriptor, serviceDescriptor.ImplementationType, closedGenericArguments);
+                return BuildTransientResolver(construct);
 
             case ServiceLifetime.Scoped:
-                return BuildScopedResolver(serviceIdentifier, serviceDescriptor, serviceDescriptor.ImplementationType, closedGenericArguments);
+                return BuildScopedResolver(serviceIdentifier, construct);
+
+            case ServiceLifetime.Singleton:
+                return BuildSingletonResolver(serviceIdentifier, serviceDescriptor, construct, RebakeFor(serviceIdentifier, nullKeyCache, keyedCache));
 
             default:
                 var lifetime = serviceDescriptor.Lifetime;
@@ -358,17 +442,53 @@ public partial class ServiceContainer : IServiceContainer
         }
     }
 
+    /// <summary>
+    /// Builds the pure construct delegate (returns a fresh, non-null instance): a custom <c>InstanceFactory</c>
+    /// call, a compiled graph node that invokes captured child resolvers directly (default factory), or the
+    /// by-type <see cref="IServiceFactory.CreateInstance"/> fallback (custom factory). The construct threads its
+    /// scope argument to child resolvers; the lifetime wrapper chooses the scope (request vs. <c>RootScope</c>).
+    /// </summary>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    private ServiceResolver BuildTransientResolver(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type implementationType, Type[]? closedGenericArguments)
+    private Func<DefaultServiceScopeProvider, object> BuildConstruct(
+        ServiceIdentifier serviceIdentifier,
+        IServiceDescriptor serviceDescriptor,
+        ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
+        ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
+        List<ServiceIdentifier> buildPath)
     {
         var serviceKey = serviceIdentifier.ServiceKey;
+        var closedGenericArguments = GetClosedGenericTypeArguments(serviceDescriptor);
 
+        // Custom factory descriptor: call it live (not compiled), passing the threaded scope's provider so
+        // scoped/keyed lookups inside the factory resolve in the correct scope. Preserve the legacy
+        // `factory ?? CreateInstance` fall-through for a factory that returns null.
+        var instanceFactory = serviceDescriptor.InstanceFactory;
+        if (instanceFactory != null)
+        {
+            return scope => instanceFactory.Invoke(scope.ServiceProvider, serviceKey)
+                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, closedGenericArguments);
+        }
+
+        // Tier 2: compile a node that invokes the children's resolvers directly (no per-argument re-dispatch).
+        if (ServiceFactory is DefaultServiceFactory defaultFactory)
+        {
+            return defaultFactory.CompileNode(
+                serviceDescriptor.ImplementationType,
+                closedGenericArguments,
+                (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath));
+        }
+
+        // Custom IServiceFactory: fall back to by-type construction (children re-dispatch through GetKeyedService).
+        return scope => ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, closedGenericArguments);
+    }
+
+    private Func<DefaultServiceScopeProvider, object?> BuildTransientResolver(Func<DefaultServiceScopeProvider, object> construct)
+    {
         return scope =>
         {
-            object instance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceKey)
-                ?? ServiceFactory.CreateInstance(implementationType, scope.ServiceProvider, closedGenericArguments);
+            object instance = construct(scope);
 
             if (instance.IsDisposable())
                 scope.TrackNewDisposable(instance);
@@ -377,12 +497,8 @@ public partial class ServiceContainer : IServiceContainer
         };
     }
 
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    private ServiceResolver BuildScopedResolver(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type implementationType, Type[]? closedGenericArguments)
+    private Func<DefaultServiceScopeProvider, object?> BuildScopedResolver(ServiceIdentifier serviceIdentifier, Func<DefaultServiceScopeProvider, object> construct)
     {
-        var serviceKey = serviceIdentifier.ServiceKey;
         var serviceType = serviceIdentifier.ServiceType;
 
         // ValidateScopes is fixed for the container's life (Options is get-only), so capture it once.
@@ -395,30 +511,24 @@ public partial class ServiceContainer : IServiceContainer
             if (validateScope && scope.IsGlobalScope)
                 throw new ServiceScopeRequiredException(serviceType);
 
-            if (scope.TryGetScopedInstance(serviceIdentifier, out object? instance))
-                return instance!;
+            if (scope.TryGetScopedInstance(serviceIdentifier, out object? existing))
+                return existing!;
 
             // Construct OUTSIDE any lock (deadlock-free; see TryAddScopedInstance).
-            object created = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceKey)
-                ?? ServiceFactory.CreateInstance(implementationType, scope.ServiceProvider, closedGenericArguments);
+            object created = construct(scope);
 
-            bool won = scope.TryAddScopedInstance(serviceIdentifier, created, out object? existing);
+            bool won = scope.TryAddScopedInstance(serviceIdentifier, created, out object? raced);
 
             // Track whether we won or lost so a disposable loser is disposed at scope teardown, not leaked.
             if (created.IsDisposable())
                 scope.TrackNewDisposable(created);
 
-            return won ? created : existing!;
+            return won ? created : raced!;
         };
     }
 
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    private ServiceResolver BuildSingletonResolver(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type implementationType, Type[]? closedGenericArguments, Action<ServiceResolver> rebake)
+    private Func<DefaultServiceScopeProvider, object?> BuildSingletonResolver(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, Func<DefaultServiceScopeProvider, object> construct, Action<Func<DefaultServiceScopeProvider, object?>> rebake)
     {
-        var serviceKey = serviceIdentifier.ServiceKey;
-
         // A pre-set instance (e.g. RegisterSingleton<T>(instance)) is never constructed and never tracked.
         if (serviceDescriptor.SingletonInstance != null)
         {
@@ -429,15 +539,14 @@ public partial class ServiceContainer : IServiceContainer
         return scope =>
         {
             // The singleton subtree is rooted at RootScope: construct/track use RootScope, never the caller's
-            // scope, reproducing the legacy RootScope.ServiceProvider construction.
+            // scope (the node threads RootScope to its children), reproducing the legacy construction.
             if (serviceDescriptor.SingletonInstance == null)
             {
                 lock (_lock)
                 {
                     if (serviceDescriptor.SingletonInstance == null)
                     {
-                        serviceDescriptor.SingletonInstance = serviceDescriptor.InstanceFactory?.Invoke(RootScope.ServiceProvider, serviceKey)
-                            ?? ServiceFactory.CreateInstance(implementationType, RootScope.ServiceProvider, closedGenericArguments);
+                        serviceDescriptor.SingletonInstance = construct(RootScope);
 
                         if (serviceDescriptor.SingletonInstance.IsDisposable())
                             RootScope.TrackNewDisposable(serviceDescriptor.SingletonInstance);
@@ -453,6 +562,24 @@ public partial class ServiceContainer : IServiceContainer
             rebake(_ => instance);
             return instance;
         };
+    }
+
+    /// <summary>
+    /// Produces the singleton constant-bake action that publishes the resolved instance into the captured cache
+    /// generation for <paramref name="serviceIdentifier"/>.
+    /// </summary>
+    private static Action<Func<DefaultServiceScopeProvider, object?>> RebakeFor(
+        ServiceIdentifier serviceIdentifier,
+        ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
+        ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache)
+    {
+        if (serviceIdentifier.ServiceKey is null)
+        {
+            var serviceType = serviceIdentifier.ServiceType;
+            return constant => nullKeyCache[serviceType] = constant;
+        }
+
+        return constant => keyedCache[serviceIdentifier] = constant;
     }
 
     /// <summary>

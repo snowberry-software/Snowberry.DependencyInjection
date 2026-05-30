@@ -15,6 +15,13 @@ public partial class DefaultServiceFactory : IServiceFactory
 {
     private static readonly ConcurrentDictionary<Type, TypeMetadata> _typeMetadataCache = new();
 
+    // Cached constructors used by the Tier 2 node compiler to bake lazy "required dependency not registered" throws.
+    private static readonly ConstructorInfo _serviceNotRegisteredCtor =
+        typeof(ServiceTypeNotRegistered).GetConstructor(new[] { typeof(Type) })!;
+
+    private static readonly ConstructorInfo _serviceNotRegisteredWithMessageCtor =
+        typeof(ServiceTypeNotRegistered).GetConstructor(new[] { typeof(Type), typeof(string) })!;
+
 #if NET9_0_OR_GREATER
     private readonly Lock _lock = new();
 #else
@@ -108,6 +115,132 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
+    /// Tier 2: compiles a node that constructs <paramref name="type"/> by invoking the resolvers of its
+    /// constructor arguments and <c>[Inject]</c> properties DIRECTLY (no per-argument re-dispatch by type). The
+    /// child resolver for each dependency is obtained once, at compile time, from <paramref name="resolveChild"/>
+    /// and baked into the expression as a constant; <c>null</c> from the callback means the dependency is
+    /// unregistered, in which case the compiler bakes the exact runtime behavior — a <see cref="ServiceTypeNotRegistered"/>
+    /// throw for a required dependency, or the default value for an optional one. Preserves the construction
+    /// semantics of <see cref="CreateInstance(Type, IServiceProvider, Type[])"/> (constructor selection,
+    /// keyed/default-value handling, property injection order, value-type unboxing) exactly.
+    /// </summary>
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    internal Func<DefaultServiceScopeProvider, object> CompileNode(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type,
+        Type[]? genericTypeArguments,
+        ChildResolverFactory resolveChild)
+    {
+        _ = type ?? throw new ArgumentNullException(nameof(type));
+
+        if (type.IsInterface || type.IsAbstract)
+            throw new InvalidServiceImplementationType(type, $"Cannot instantiate abstract classes or interfaces! ({type.FullName})!");
+
+        if (type.IsGenericTypeDefinition)
+        {
+            if (genericTypeArguments == null)
+                throw new ArgumentNullException(nameof(genericTypeArguments));
+
+            type = type.MakeGenericType(genericTypeArguments);
+        }
+
+        var metadata = GetTypeMetadata(type);
+        var constructor = metadata.Constructor;
+        if (constructor == null)
+        {
+            ThrowHelper.ThrowInvalidConstructor(type);
+            return null!;
+        }
+
+        var scopeParameter = Expression.Parameter(typeof(DefaultServiceScopeProvider), "scope");
+
+        // Constructor arguments: each resolved via its captured child resolver (or baked throw/default).
+        var parameters = metadata.Parameters;
+        var argumentExpressions = new Expression[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            var parameter = parameters[i];
+            var child = resolveChild(parameter.ParameterType, parameter.ServiceKey);
+            argumentExpressions[i] = BuildDependencyExpression(child, parameter.ParameterType, parameter.DefaultValue, scopeParameter);
+        }
+
+        var newExpression = Expression.New(constructor, argumentExpressions);
+
+        var properties = metadata.InjectableProperties;
+        if (properties.Length == 0)
+        {
+            // (object) new T(args)
+            var simpleBody = Expression.Convert(newExpression, typeof(object));
+            return Expression.Lambda<Func<DefaultServiceScopeProvider, object>>(simpleBody, scopeParameter).Compile();
+        }
+
+        // object inst = (object) new T(args);  <property assignments / required-null throw>;  return inst;
+        // The instance is boxed once into `inst` so property injection works on the same object for value-type
+        // services too — matching CreateInstance, which sets properties on the boxed instance.
+        var instance = Expression.Variable(typeof(object), "inst");
+        var statements = new List<Expression>(properties.Length + 2)
+        {
+            Expression.Assign(instance, Expression.Convert(newExpression, typeof(object)))
+        };
+
+        for (int i = 0; i < properties.Length; i++)
+        {
+            var property = properties[i];
+            var child = resolveChild(property.PropertyType, property.ServiceKey);
+
+            if (child == null && property.IsRequired)
+            {
+                // Construct ran above; now throw exactly as the runtime loop does for a required-null property.
+                statements.Add(Expression.Throw(Expression.New(
+                    _serviceNotRegisteredWithMessageCtor,
+                    Expression.Constant(property.PropertyType, typeof(Type)),
+                    Expression.Constant($"The required service for the property `{property.PropertyName}` is not registered!"))));
+                break;
+            }
+
+            // value = child(scope)  (registered)  OR  null  (optional + unregistered)
+            Expression value = child != null
+                ? Expression.Invoke(Expression.Constant(child), scopeParameter)
+                : Expression.Constant(null, typeof(object));
+
+            // property.Setter(inst, value) — invoke the public Action so the expression avoids the private type.
+            statements.Add(Expression.Invoke(Expression.Constant(property.Setter), instance, value));
+        }
+
+        statements.Add(instance); // return inst
+
+        var body = Expression.Block(typeof(object), new[] { instance }, statements);
+        return Expression.Lambda<Func<DefaultServiceScopeProvider, object>>(body, scopeParameter).Compile();
+    }
+
+    /// <summary>
+    /// Builds the expression for a single constructor argument, typed as <paramref name="targetType"/>:
+    /// registered → cast the child resolver's result; optional + unregistered → the (boxed) default value;
+    /// required + unregistered → a lazily-thrown <see cref="ServiceTypeNotRegistered"/> (matching
+    /// <c>GetRequiredService</c>). The optional/required split uses the existing <c>DefaultValue != null</c>
+    /// proxy (an explicit <c>null</c> default is treated as required) — reproduced, not "fixed".
+    /// </summary>
+    private static Expression BuildDependencyExpression(Func<DefaultServiceScopeProvider, object?>? child, Type targetType, object? defaultValue, ParameterExpression scopeParameter)
+    {
+        if (child != null)
+        {
+            // (targetType) child(scope) — Convert unboxes value types.
+            var invoke = Expression.Invoke(Expression.Constant(child), scopeParameter);
+            return Expression.Convert(invoke, targetType);
+        }
+
+        if (defaultValue != null)
+        {
+            // Optional: (targetType) defaultValue (boxed → unbox/cast).
+            return Expression.Convert(Expression.Constant(defaultValue, typeof(object)), targetType);
+        }
+
+        // Required + unregistered: throw ServiceTypeNotRegistered(targetType), typed as targetType so it fits the arg slot.
+        return Expression.Throw(Expression.New(_serviceNotRegisteredCtor, Expression.Constant(targetType, typeof(Type))), targetType);
+    }
+
+    /// <summary>
     /// Gets or creates comprehensive metadata for a type including constructor, parameters, and properties.
     /// </summary>
     [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = "The BuildTypeMetadata delegate correctly preserves all DynamicallyAccessedMembers annotations through the GetOrAdd call.")]
@@ -126,12 +259,13 @@ public partial class DefaultServiceFactory : IServiceFactory
         var constructor = SelectConstructor(type);
 
         ConstructorInvokerInfo? constructorInfo = null;
+        ParameterCacheInfo[] parameterInfos = [];
         if (constructor != null)
         {
             var parameters = constructor.GetParameters();
 
             // Cache parameter metadata to avoid reflection on every instantiation
-            var parameterInfos = new ParameterCacheInfo[parameters.Length];
+            parameterInfos = new ParameterCacheInfo[parameters.Length];
             for (int i = 0; i < parameters.Length; i++)
             {
                 var param = parameters[i];
@@ -187,7 +321,7 @@ public partial class DefaultServiceFactory : IServiceFactory
             .Select(p => new PropertyCacheInfo(p))
             .ToArray();
 
-        return new TypeMetadata(constructor, constructorInfo, injectableProperties);
+        return new TypeMetadata(constructor, constructorInfo, parameterInfos, injectableProperties);
     }
 
     /// <summary>
@@ -258,16 +392,20 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// </summary>
     private sealed class TypeMetadata
     {
-        public TypeMetadata(ConstructorInfo? constructor, ConstructorInvokerInfo? constructorInvoker, PropertyCacheInfo[] injectableProperties)
+        public TypeMetadata(ConstructorInfo? constructor, ConstructorInvokerInfo? constructorInvoker, ParameterCacheInfo[] parameters, PropertyCacheInfo[] injectableProperties)
         {
             Constructor = constructor;
             ConstructorInvoker = constructorInvoker;
+            Parameters = parameters;
             InjectableProperties = injectableProperties;
         }
 
         public ConstructorInfo? Constructor { get; }
 
         public ConstructorInvokerInfo? ConstructorInvoker { get; }
+
+        /// <summary>Cached constructor-parameter metadata (used by the Tier 2 node compiler).</summary>
+        public ParameterCacheInfo[] Parameters { get; }
 
         public PropertyCacheInfo[] InjectableProperties { get; }
     }
@@ -362,6 +500,12 @@ public partial class DefaultServiceFactory : IServiceFactory
         {
             _compiledSetter(instance, value);
         }
+
+        /// <summary>
+        /// The compiled setter, exposed so the Tier 2 node compiler can invoke it via a public
+        /// <see cref="Action{T1, T2}"/> constant (the expression never references this private type).
+        /// </summary>
+        public Action<object, object?> Setter => _compiledSetter;
 
         public Type PropertyType { get; }
 
