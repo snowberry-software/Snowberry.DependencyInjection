@@ -478,7 +478,7 @@ try
         Assert(service!.ServiceFactory != null, "IServiceFactory should be injected");
 
         // Verify the injected scope is the global scope
-        Assert(service!.Scope.IsGlobalScope, "Injected scope should be global");
+        Assert(service!.Scope!.IsGlobalScope, "Injected scope should be global");
     });
 
     RunTest("BuiltInService_MultipleScopesHaveDifferentProviders", () =>

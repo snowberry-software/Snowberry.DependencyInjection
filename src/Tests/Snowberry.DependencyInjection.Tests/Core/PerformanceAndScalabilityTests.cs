@@ -256,7 +256,6 @@ public class PerformanceAndScalabilityTests
         stopwatch.Stop();
 
         // Assert
-        int totalResolutions = taskCount * resolutionsPerTask;
         Assert.True(stopwatch.ElapsedMilliseconds < 5000); // Should complete reasonably quickly
         // The singleton should be shared, so only 1 + (taskCount * resolutionsPerTask) disposables
         Assert.True(container.DisposableContainer.DisposableCount >= 1); // At least the singleton
