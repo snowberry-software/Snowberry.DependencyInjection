@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Snowberry.DependencyInjection.Abstractions.Interfaces;
 using Snowberry.DependencyInjection.Helper;
+using Snowberry.DependencyInjection.Implementation;
 
 namespace Snowberry.DependencyInjection.Lookup;
 
@@ -22,7 +23,7 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
-    private Dictionary<IServiceIdentifier, object>? _scopedInstances;
+    private Dictionary<ServiceIdentifier, object>? _scopedInstances;
 
     public DefaultServiceScopeProvider(ServiceContainer rootProvider, bool isRootScope)
     {
@@ -32,6 +33,15 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
 
     /// <inheritdoc/>
     public bool TryGetScopedInstance(IServiceIdentifier serviceIdentifier, [NotNullWhen(true)] out object? instance)
+    {
+        return TryGetScopedInstance(AsStruct(serviceIdentifier), out instance);
+    }
+
+    /// <summary>
+    /// Hot-path overload that takes the concrete <see cref="ServiceIdentifier"/> by reference so the scoped
+    /// cache lookup does not box the struct key to <see cref="IServiceIdentifier"/>.
+    /// </summary>
+    internal bool TryGetScopedInstance(in ServiceIdentifier serviceIdentifier, [NotNullWhen(true)] out object? instance)
     {
         lock (_lock)
         {
@@ -50,13 +60,65 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     /// <inheritdoc/>
     public void AddCached(IServiceIdentifier serviceIdentifier, object instance)
     {
+        AddCached(AsStruct(serviceIdentifier), instance);
+    }
+
+    /// <summary>
+    /// Hot-path overload that takes the concrete <see cref="ServiceIdentifier"/> by reference so caching does
+    /// not box the struct key.
+    /// </summary>
+    internal void AddCached(in ServiceIdentifier serviceIdentifier, object instance)
+    {
         lock (_lock)
         {
             DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
-            _scopedInstances ??= new(4);
+            _scopedInstances ??= new(4, ServiceIdentifierComparer.Instance);
             _scopedInstances[serviceIdentifier] = instance;
         }
+    }
+
+    /// <summary>
+    /// Atomically caches <paramref name="instance"/> for <paramref name="serviceIdentifier"/> unless another
+    /// thread already cached one. Returns <c>true</c> when this instance won and was stored; returns
+    /// <c>false</c> and the previously-cached <paramref name="existing"/> instance otherwise. Only the
+    /// per-scope lock is taken — the caller constructs the instance *outside* any lock so a nested resolution
+    /// that needs the container lock cannot invert lock order.
+    /// </summary>
+    internal bool TryAddScopedInstance(in ServiceIdentifier serviceIdentifier, object instance, out object? existing)
+    {
+        lock (_lock)
+        {
+            DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
+
+            _scopedInstances ??= new(4, ServiceIdentifierComparer.Instance);
+
+            if (_scopedInstances.TryGetValue(serviceIdentifier, out existing))
+                return false;
+
+            _scopedInstances[serviceIdentifier] = instance;
+            existing = null;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Converts a public <see cref="IServiceIdentifier"/> to the concrete struct, unboxing when it already is
+    /// one and reconstructing from its type/key otherwise (equality is by service type + key).
+    /// </summary>
+    private static ServiceIdentifier AsStruct(IServiceIdentifier serviceIdentifier)
+    {
+        return serviceIdentifier as ServiceIdentifier?
+            ?? new ServiceIdentifier(serviceIdentifier.ServiceType, serviceIdentifier.ServiceKey);
+    }
+
+    /// <summary>
+    /// Tracks a freshly-created disposable instance for this scope, bypassing the public dedupe scan
+    /// (the instance is provably new). See <see cref="DisposableContainer.AddDisposableUnchecked"/>.
+    /// </summary>
+    internal void TrackNewDisposable(object instance)
+    {
+        _disposableContainer.AddDisposableUnchecked(instance);
     }
 
     /// <summary>

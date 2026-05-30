@@ -14,7 +14,7 @@ namespace Snowberry.DependencyInjection;
 /// <inheritdoc cref="IServiceContainer"/>.
 public partial class ServiceContainer : IServiceContainer
 {
-    private ConcurrentDictionary<IServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = [];
+    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(ServiceIdentifierComparer.Instance);
 
     private bool _isDisposed;
 
@@ -111,17 +111,27 @@ public partial class ServiceContainer : IServiceContainer
     /// <inheritdoc/>
     public IServiceDescriptor? GetOptionalServiceDescriptor(Type serviceType, object? serviceKey)
     {
-        // Fast path: try to read without any locking first (using ConcurrentDictionary's thread safety)
-        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+        return GetOptionalServiceDescriptor(new ServiceIdentifier(serviceType, serviceKey));
+    }
 
+    /// <summary>
+    /// Looks up the descriptor for an already-built <see cref="ServiceIdentifier"/>, avoiding a second
+    /// identifier construction/hash on the resolve hot path.
+    /// </summary>
+    private IServiceDescriptor? GetOptionalServiceDescriptor(in ServiceIdentifier serviceIdentifier)
+    {
+        // Fast path: try to read without any locking first (using ConcurrentDictionary's thread safety)
         if (_serviceDescriptorMapping.TryGetValue(serviceIdentifier, out var serviceDescriptor))
         {
             DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
             return serviceDescriptor;
         }
 
-        // If not found and it's not a generic type, return null without locking
-        if (serviceType.GenericTypeArguments.Length == 0)
+        var serviceType = serviceIdentifier.ServiceType;
+
+        // If not found and it's not a constructed generic, return null without locking.
+        // IsConstructedGenericType avoids the Type[] copy that GenericTypeArguments allocates for closed generics.
+        if (!serviceType.IsConstructedGenericType)
         {
             DisposeThrowHelper.ThrowIfDisposed(IsDisposed, this);
             return null;
@@ -137,7 +147,7 @@ public partial class ServiceContainer : IServiceContainer
                 return serviceDescriptor;
 
             var genericType = serviceType.GetGenericTypeDefinition();
-            var genericServiceIdentifier = new ServiceIdentifier(genericType, serviceKey);
+            var genericServiceIdentifier = new ServiceIdentifier(genericType, serviceIdentifier.ServiceKey);
 
             // Check if we have an open generic registration
             if (_serviceDescriptorMapping.TryGetValue(genericServiceIdentifier, out serviceDescriptor))
@@ -203,7 +213,9 @@ public partial class ServiceContainer : IServiceContainer
         if (serviceKey == null && IsBuiltInService(serviceType))
             return GetBuiltInService(serviceType, scope, serviceKey);
 
-        var descriptor = GetOptionalServiceDescriptor(serviceType, serviceKey);
+        // Build the identifier once and thread it through both the descriptor lookup and the instance resolution.
+        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
+        var descriptor = GetOptionalServiceDescriptor(serviceIdentifier);
 
         if (descriptor == null)
             return null;
@@ -211,7 +223,6 @@ public partial class ServiceContainer : IServiceContainer
         if (ValidateScopes && descriptor.Lifetime == ServiceLifetime.Scoped && scope.IsGlobalScope)
             throw new ServiceScopeRequiredException(serviceType);
 
-        var serviceIdentifier = new ServiceIdentifier(serviceType, serviceKey);
         return GetInstanceFromDescriptor(serviceIdentifier, descriptor, scope);
     }
 
@@ -241,21 +252,30 @@ public partial class ServiceContainer : IServiceContainer
         throw new NotImplementedException($"Built-in service of type '{serviceType.FullName}' is not implemented.");
     }
 
+    /// <summary>
+    /// Memoizes the built-in-service classification per <see cref="Type"/>. The result is fixed for a given
+    /// type, so the seven <see cref="Type.IsAssignableFrom(Type)"/> probes only run on the first resolve of
+    /// each type; every later null-key resolve is a single cache hit. Behavior is identical to the ladder
+    /// (including the derived-interface case) — only the cost is amortized.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Type, bool> _builtInServiceCache = new();
+
     private static bool IsBuiltInService(Type serviceType)
     {
-        return typeof(IServiceContainer).IsAssignableFrom(serviceType)
-            || typeof(IServiceRegistry).IsAssignableFrom(serviceType)
-            || typeof(IServiceDescriptorReceiver).IsAssignableFrom(serviceType)
-            || typeof(IServiceProvider).IsAssignableFrom(serviceType)
-            || typeof(IScope).IsAssignableFrom(serviceType)
-            || typeof(IServiceScopeFactory).IsAssignableFrom(serviceType)
-            || typeof(IServiceFactory).IsAssignableFrom(serviceType);
+        return _builtInServiceCache.GetOrAdd(serviceType, static type =>
+            typeof(IServiceContainer).IsAssignableFrom(type)
+            || typeof(IServiceRegistry).IsAssignableFrom(type)
+            || typeof(IServiceDescriptorReceiver).IsAssignableFrom(type)
+            || typeof(IServiceProvider).IsAssignableFrom(type)
+            || typeof(IScope).IsAssignableFrom(type)
+            || typeof(IServiceScopeFactory).IsAssignableFrom(type)
+            || typeof(IServiceFactory).IsAssignableFrom(type));
     }
 
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    private object GetInstanceFromDescriptor(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, IScope scope)
+    private object GetInstanceFromDescriptor(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, DefaultServiceScopeProvider scope)
     {
         _ = serviceDescriptor ?? throw new ArgumentNullException(nameof(serviceDescriptor));
         _ = scope ?? throw new ArgumentNullException(nameof(scope));
@@ -274,10 +294,10 @@ public partial class ServiceContainer : IServiceContainer
                         if (serviceDescriptor.SingletonInstance == null)
                         {
                             serviceDescriptor.SingletonInstance = serviceDescriptor.InstanceFactory?.Invoke(RootScope.ServiceProvider, serviceIdentifier.ServiceKey)
-                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, RootScope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, RootScope.ServiceProvider, GetClosedGenericTypeArguments(serviceDescriptor));
 
                             if (serviceDescriptor.SingletonInstance.IsDisposable())
-                                RootScope.DisposableContainer.RegisterDisposable(serviceDescriptor.SingletonInstance);
+                                RootScope.TrackNewDisposable(serviceDescriptor.SingletonInstance);
                         }
                     }
                 }
@@ -287,40 +307,53 @@ public partial class ServiceContainer : IServiceContainer
             case ServiceLifetime.Transient:
 
                 object? transientInstance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
-                    ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+                    ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, GetClosedGenericTypeArguments(serviceDescriptor));
 
                 if (transientInstance.IsDisposable())
-                    scope.DisposableContainer.RegisterDisposable(transientInstance);
+                    scope.TrackNewDisposable(transientInstance);
 
                 return transientInstance;
 
             case ServiceLifetime.Scoped:
                 {
-                    bool resolved = scope.TryGetScopedInstance(serviceIdentifier, out object? instance);
-
-                    if (resolved)
+                    if (scope.TryGetScopedInstance(serviceIdentifier, out object? instance))
                         return instance!;
 
-                    lock (_lock)
-                    {
-                        if ((resolved = scope.TryGetScopedInstance(serviceIdentifier, out instance)) == false)
-                        {
-                            instance = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
-                                ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, serviceDescriptor.ServiceType.GenericTypeArguments);
+                    // Construct OUTSIDE any lock. The container-wide lock is deliberately NOT taken here: two
+                    // different scopes resolving scoped services must not serialize on it, and constructing
+                    // without holding a lock prevents a nested dependency that needs the container lock (e.g. a
+                    // singleton) from inverting lock order against another thread → no deadlock.
+                    object created = serviceDescriptor.InstanceFactory?.Invoke(scope.ServiceProvider, serviceIdentifier.ServiceKey)
+                        ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, GetClosedGenericTypeArguments(serviceDescriptor));
 
-                            if (instance.IsDisposable())
-                                scope.DisposableContainer.RegisterDisposable(instance);
+                    // Publish under the per-scope lock. If another thread won the race, it returns its instance;
+                    // ours becomes a redundant loser.
+                    bool won = scope.TryAddScopedInstance(serviceIdentifier, created, out object? existing);
 
-                            scope.AddCached(serviceIdentifier, instance);
-                        }
-                    }
+                    // Track the created instance for disposal whether we won or lost, so a disposable loser is
+                    // disposed at scope teardown rather than leaked.
+                    if (created.IsDisposable())
+                        scope.TrackNewDisposable(created);
 
-                    return instance!;
+                    return won ? created : existing!;
                 }
 
             default:
                 return ThrowHelper.ThrowServiceLifetimeNotImplemented(serviceDescriptor.Lifetime);
         }
+    }
+
+    /// <summary>
+    /// Returns the closed generic type arguments only when the implementation is an open generic definition
+    /// that <see cref="IServiceFactory.CreateInstance"/> must close via <c>MakeGenericType</c>. For every other
+    /// (non-generic) implementation the factory ignores the argument, so we avoid the <c>Type[]</c> the
+    /// <see cref="Type.GenericTypeArguments"/> property would otherwise copy on each resolve.
+    /// </summary>
+    private static Type[]? GetClosedGenericTypeArguments(IServiceDescriptor serviceDescriptor)
+    {
+        return serviceDescriptor.ImplementationType.IsGenericTypeDefinition
+            ? serviceDescriptor.ServiceType.GenericTypeArguments
+            : null;
     }
 
     /// <summary>

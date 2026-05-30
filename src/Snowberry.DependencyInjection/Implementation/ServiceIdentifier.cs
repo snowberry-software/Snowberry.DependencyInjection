@@ -1,9 +1,10 @@
-﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
+﻿using System.Collections.Generic;
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 
 /// <see cref="IServiceIdentifier"/>
-public readonly struct ServiceIdentifier : IServiceIdentifier
+public readonly struct ServiceIdentifier : IServiceIdentifier, IEquatable<ServiceIdentifier>
 {
     public ServiceIdentifier(Type serviceType)
     {
@@ -29,6 +30,18 @@ public readonly struct ServiceIdentifier : IServiceIdentifier
             return ServiceType == other.ServiceType && ServiceKey.Equals(other.ServiceKey);
 
         return false;
+    }
+
+    /// <summary>
+    /// Value-typed equality used by <see cref="ServiceIdentifierComparer"/> so the struct can be a
+    /// dictionary key without boxing to <see cref="IServiceIdentifier"/> on every lookup.
+    /// </summary>
+    public bool Equals(ServiceIdentifier other)
+    {
+        if (ServiceKey == null)
+            return other.ServiceKey == null && ServiceType == other.ServiceType;
+
+        return other.ServiceKey != null && ServiceType == other.ServiceType && ServiceKey.Equals(other.ServiceKey);
     }
 
     /// <inheritdoc/>
@@ -69,4 +82,24 @@ public readonly struct ServiceIdentifier : IServiceIdentifier
 
     /// <inheritdoc/>
     public object? ServiceKey { get; }
+}
+
+/// <summary>
+/// Value-type equality comparer for <see cref="ServiceIdentifier"/>. Supplying this to the lookup
+/// dictionaries keeps the struct key from being boxed to <see cref="IServiceIdentifier"/> on every
+/// <c>TryGetValue</c>/insert.
+/// </summary>
+internal sealed class ServiceIdentifierComparer : IEqualityComparer<ServiceIdentifier>
+{
+    public static readonly ServiceIdentifierComparer Instance = new();
+
+    public bool Equals(ServiceIdentifier x, ServiceIdentifier y)
+    {
+        return x.Equals(y);
+    }
+
+    public int GetHashCode(ServiceIdentifier obj)
+    {
+        return obj.GetHashCode();
+    }
 }

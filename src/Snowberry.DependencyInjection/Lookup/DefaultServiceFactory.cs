@@ -53,38 +53,15 @@ public partial class DefaultServiceFactory : IServiceFactory
             return null!;
         }
 
-        // Use cached parameter metadata - no reflection needed!
-        var parameters = metadata.ConstructorInvoker.Parameters;
-        object?[] args = new object?[parameters.Length];
-
-        var keyedServiceProvider = serviceProvider as IKeyedServiceProvider;
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            var param = parameters[i];
-            bool hasDefaultValue = param.DefaultValue != null;
-
-            object? paramValue = null;
-
-            if (param.ServiceKey != null)
-            {
-                if (keyedServiceProvider == null)
-                    throw new InvalidOperationException($"The service provider does not support keyed service resolution (type=`{type.FullName}`, param=`{param.Name}`, paramType=`{param.ParameterType}`)!");
-
-                paramValue = !hasDefaultValue ? keyedServiceProvider.GetRequiredKeyedService(param.ParameterType, param.ServiceKey) : keyedServiceProvider.GetKeyedService(param.ParameterType, param.ServiceKey);
-            }
-            else
-                paramValue = !hasDefaultValue ? serviceProvider.GetRequiredService(param.ParameterType) : serviceProvider.GetService(param.ParameterType);
-
-            paramValue ??= param.DefaultValue;
-
-            args[i] = paramValue;
-        }
-
-        // Use compiled expression invoker instead of reflection
-        object instance = metadata.ConstructorInvoker.Invoker(args);
+        // Compiled invoker resolves each constructor argument inline from the provider — no per-resolve object?[] array.
+        object instance = metadata.ConstructorInvoker.Invoke(serviceProvider);
 
         // Inject properties using cached metadata
         var properties = metadata.InjectableProperties;
+        if (properties.Length == 0)
+            return instance;
+
+        var keyedServiceProvider = serviceProvider as IKeyedServiceProvider;
         for (int i = 0; i < properties.Length; i++)
         {
             var property = properties[i];
@@ -168,32 +145,40 @@ public partial class DefaultServiceFactory : IServiceFactory
                 );
             }
 
-            // Create parameter: object?[] args
-            var argsParameter = Expression.Parameter(typeof(object?[]), "args");
+            // Compile an invoker that resolves each argument inline from the provider, so no object?[] array is
+            // allocated per construction:
+            //   (IServiceProvider sp) => { var keyedSp = sp as IKeyedServiceProvider;
+            //                              return (object)new T( (T0)ResolveConstructorArgument(p0, type, sp, keyedSp), ... ); }
+            var spParameter = Expression.Parameter(typeof(IServiceProvider), "sp");
+            var keyedProvider = Expression.Variable(typeof(IKeyedServiceProvider), "keyedSp");
+            var declaringTypeConstant = Expression.Constant(type, typeof(Type));
+            var resolveMethod = typeof(DefaultServiceFactory).GetMethod(nameof(ResolveConstructorArgument), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-            // Create expressions to extract and cast each argument from the array
             var argumentExpressions = new Expression[parameters.Length];
             for (int i = 0; i < parameters.Length; i++)
             {
-                var paramType = parameters[i].ParameterType;
+                // (ParameterType)ResolveConstructorArgument(parameterInfos[i], type, sp, keyedSp)
+                var resolveCall = Expression.Call(
+                    resolveMethod,
+                    Expression.Constant(parameterInfos[i]),
+                    declaringTypeConstant,
+                    spParameter,
+                    keyedProvider);
 
-                // args[i]
-                var arrayAccess = Expression.ArrayIndex(argsParameter, Expression.Constant(i));
-
-                // (ParameterType)args[i]
-                argumentExpressions[i] = Expression.Convert(arrayAccess, paramType);
+                argumentExpressions[i] = Expression.Convert(resolveCall, parameters[i].ParameterType);
             }
 
             // new T(arg0, arg1, ...)
             var newExpression = Expression.New(constructor, argumentExpressions);
 
-            // Convert to object if needed
-            var convertExpression = Expression.Convert(newExpression, typeof(object));
+            var body = Expression.Block(
+                new[] { keyedProvider },
+                Expression.Assign(keyedProvider, Expression.TypeAs(spParameter, typeof(IKeyedServiceProvider))),
+                Expression.Convert(newExpression, typeof(object)));
 
-            // Compile: (object?[] args) => (object)new T((T0)args[0], (T1)args[1], ...)
-            var invoker = Expression.Lambda<Func<object?[], object>>(convertExpression, argsParameter).Compile();
+            var invoker = Expression.Lambda<Func<IServiceProvider, object>>(body, spParameter).Compile();
 
-            constructorInfo = new ConstructorInvokerInfo(invoker, parameterInfos);
+            constructorInfo = new ConstructorInvokerInfo(invoker);
         }
 
         // Cache injectable properties
@@ -203,6 +188,31 @@ public partial class DefaultServiceFactory : IServiceFactory
             .ToArray();
 
         return new TypeMetadata(constructor, constructorInfo, injectableProperties);
+    }
+
+    /// <summary>
+    /// Resolves a single constructor argument from the provider. Invoked by the compiled per-type invoker so
+    /// arguments are resolved without allocating an <c>object?[]</c> per construction. Behavior (required vs.
+    /// optional, keyed vs. non-keyed, default-value fallback) and the thrown exception/message are identical
+    /// to the original inline resolution loop.
+    /// </summary>
+    private static object? ResolveConstructorArgument(ParameterCacheInfo param, Type declaringType, IServiceProvider serviceProvider, IKeyedServiceProvider? keyedServiceProvider)
+    {
+        bool hasDefaultValue = param.DefaultValue != null;
+
+        object? paramValue;
+
+        if (param.ServiceKey != null)
+        {
+            if (keyedServiceProvider == null)
+                throw new InvalidOperationException($"The service provider does not support keyed service resolution (type=`{declaringType.FullName}`, param=`{param.Name}`, paramType=`{param.ParameterType}`)!");
+
+            paramValue = !hasDefaultValue ? keyedServiceProvider.GetRequiredKeyedService(param.ParameterType, param.ServiceKey) : keyedServiceProvider.GetKeyedService(param.ParameterType, param.ServiceKey);
+        }
+        else
+            paramValue = !hasDefaultValue ? serviceProvider.GetRequiredService(param.ParameterType) : serviceProvider.GetService(param.ParameterType);
+
+        return paramValue ?? param.DefaultValue;
     }
 
     /// <summary>
@@ -224,10 +234,23 @@ public partial class DefaultServiceFactory : IServiceFactory
                 return constructor;
         }
 
-        // Otherwise get the constructor with the largest number of parameters.
-        return constructors
-            .OrderByDescending(c => c.GetParameters().Length)
-            .FirstOrDefault();
+        // Otherwise get the constructor with the largest number of parameters. First-seen wins ties, matching
+        // the previous stable OrderByDescending(...).FirstOrDefault() — without the enumerator/sort allocation.
+        ConstructorInfo? best = null;
+        int bestParameterCount = -1;
+
+        for (int i = 0; i < constructors.Length; i++)
+        {
+            int parameterCount = constructors[i].GetParameters().Length;
+
+            if (parameterCount > bestParameterCount)
+            {
+                bestParameterCount = parameterCount;
+                best = constructors[i];
+            }
+        }
+
+        return best;
     }
 
     /// <summary>
@@ -250,13 +273,16 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Cached information about a constructor including compiled invoker and parameter metadata.
+    /// Cached compiled invoker that constructs the instance, resolving each argument inline from the provider.
     /// </summary>
-    private sealed class ConstructorInvokerInfo(Func<object?[], object> invoker, ParameterCacheInfo[] parameters)
+    private sealed class ConstructorInvokerInfo(Func<IServiceProvider, object> invoker)
     {
-        public Func<object?[], object> Invoker { get; } = invoker;
+        private readonly Func<IServiceProvider, object> _invoker = invoker;
 
-        public ParameterCacheInfo[] Parameters { get; } = parameters;
+        public object Invoke(IServiceProvider serviceProvider)
+        {
+            return _invoker(serviceProvider);
+        }
     }
 
     /// <summary>
