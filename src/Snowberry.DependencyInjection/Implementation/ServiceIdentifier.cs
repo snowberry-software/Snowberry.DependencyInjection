@@ -3,14 +3,23 @@ using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 
-/// <see cref="IServiceIdentifier"/>
+/// <inheritdoc cref="IServiceIdentifier"/>
 public readonly struct ServiceIdentifier : IServiceIdentifier, IEquatable<ServiceIdentifier>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ServiceIdentifier"/> struct for the default (non-keyed) registration.
+    /// </summary>
+    /// <param name="serviceType">The type of the service.</param>
     public ServiceIdentifier(Type serviceType)
     {
         ServiceType = serviceType;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ServiceIdentifier"/> struct for a keyed registration.
+    /// </summary>
+    /// <param name="serviceType">The type of the service.</param>
+    /// <param name="serviceKey">The service key, or <see langword="null"/> for the default registration.</param>
     public ServiceIdentifier(Type serviceType, object? serviceKey)
     {
         ServiceType = serviceType;

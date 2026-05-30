@@ -10,12 +10,12 @@ namespace Snowberry.DependencyInjection;
 public partial class ServiceContainer
 {
     /// <summary>
-    /// Eagerly validates the registered service graph, throwing <see cref="ServiceValidationException"/> if any
-    /// problems are found (missing required dependencies, circular dependencies, un-constructable
-    /// implementations). The graph is only <i>built</i>, never resolved — no service instances are constructed,
-    /// so a registered-but-never-resolved singleton stays uninstantiated. The container remains mutable; call
-    /// this again after further registration changes.
+    /// Validates the registered service graph, throwing <see cref="ServiceValidationException"/> when any
+    /// problems are found (missing required dependencies, circular dependencies, or implementations that cannot
+    /// be constructed). No service instances are constructed. The container remains mutable; call this again
+    /// after further registration changes.
     /// </summary>
+    /// <exception cref="ServiceValidationException">The service graph contains one or more validation problems.</exception>
     public void Validate()
     {
         if (!TryValidate(out var errors))
@@ -23,13 +23,12 @@ public partial class ServiceContainer
     }
 
     /// <summary>
-    /// Locks the container into an immutable, maximally-optimized state (opt-in, one-way). After freezing,
-    /// <c>Register</c> / <c>UnregisterService</c> throw <see cref="ServiceRegistryReadOnlyException"/>, and the
-    /// compiled-resolver graph becomes permanent so it can inline pure-transient subtrees (no per-node delegate
-    /// hop) for MS.DI-grade resolution. By default (<paramref name="validate"/> = <c>true</c>) the graph is
-    /// validated first — freezing is the natural "I'm done configuring" point to fail fast. Idempotent.
+    /// Locks the container into an immutable state. This is a one-way, idempotent operation: after freezing,
+    /// registration changes throw <see cref="ServiceRegistryReadOnlyException"/>. When <paramref name="validate"/>
+    /// is <see langword="true"/> (the default), <see cref="Validate"/> is run before the container is frozen.
     /// </summary>
-    /// <param name="validate">When <c>true</c> (default), runs <see cref="Validate"/> before freezing.</param>
+    /// <param name="validate">When <see langword="true"/> (the default), runs <see cref="Validate"/> before freezing.</param>
+    /// <exception cref="ServiceValidationException"><paramref name="validate"/> is <see langword="true"/> and the service graph contains validation problems.</exception>
     public void Freeze(bool validate = true)
     {
         if (_frozen)
@@ -53,11 +52,12 @@ public partial class ServiceContainer
     }
 
     /// <summary>
-    /// Non-throwing variant of <see cref="Validate"/>: collects ALL problems into <paramref name="errors"/> and
-    /// returns <c>true</c> when there are none. Open-generic registrations are validated structurally only
-    /// (their closed dependency chains are validated when a concrete closed type is registered/resolved);
-    /// factory- and instance-backed registrations are treated as opaque (no constructable graph to walk).
+    /// Validates the registered service graph without throwing, collecting all problems into
+    /// <paramref name="errors"/>. Open-generic registrations are validated structurally only; factory-backed and
+    /// instance-backed registrations are treated as opaque. No service instances are constructed.
     /// </summary>
+    /// <param name="errors">When this method returns, contains every validation problem found, or an empty list when the graph is valid.</param>
+    /// <returns><see langword="true"/> when no validation problems were found; otherwise, <see langword="false"/>.</returns>
     public bool TryValidate(out IReadOnlyList<ServiceValidationError> errors)
     {
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);

@@ -29,6 +29,10 @@ public partial class DefaultServiceFactory : IServiceFactory
     private readonly object _lock = new();
 #endif
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultServiceFactory"/> class.
+    /// </summary>
+    /// <param name="serviceContainer">The service container the factory creates instances for.</param>
     public DefaultServiceFactory(ServiceContainer serviceContainer)
     {
     }
@@ -116,15 +120,16 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Tier 2: compiles a node that constructs <paramref name="type"/> by invoking the resolvers of its
-    /// constructor arguments and <c>[Inject]</c> properties DIRECTLY (no per-argument re-dispatch by type). The
-    /// child resolver for each dependency is obtained once, at compile time, from <paramref name="resolveChild"/>
-    /// and baked into the expression as a constant; <c>null</c> from the callback means the dependency is
-    /// unregistered, in which case the compiler bakes the exact runtime behavior — a <see cref="ServiceTypeNotRegistered"/>
-    /// throw for a required dependency, or the default value for an optional one. Preserves the construction
-    /// semantics of <see cref="CreateInstance(Type, IServiceProvider, Type[])"/> (constructor selection,
-    /// keyed/default-value handling, property injection order, value-type unboxing) exactly.
+    /// Compiles a delegate that constructs an instance of <paramref name="type"/>, resolving each constructor
+    /// argument and <see cref="InjectAttribute"/> property through the resolver supplied by <paramref name="resolveChild"/>.
     /// </summary>
+    /// <param name="type">The implementation type to construct. When it is a generic type definition, <paramref name="genericTypeArguments"/> closes it.</param>
+    /// <param name="genericTypeArguments">The generic type arguments used to close <paramref name="type"/> when it is a generic type definition; otherwise <see langword="null"/>.</param>
+    /// <param name="resolveChild">Supplies the resolver for each dependency, or <see langword="null"/> when the dependency is not registered.</param>
+    /// <param name="shouldInline">Optional callback that selects dependencies to construct inline; <see langword="null"/> resolves every dependency through <paramref name="resolveChild"/>.</param>
+    /// <returns>A delegate that produces a constructed instance for a given <see cref="DefaultServiceScopeProvider"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>, or <paramref name="type"/> is a generic type definition and <paramref name="genericTypeArguments"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidServiceImplementationType"><paramref name="type"/> is an interface or abstract class.</exception>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
@@ -214,12 +219,15 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Builds the expression for a single constructor argument, typed as <paramref name="targetType"/>:
-    /// registered → cast the child resolver's result; optional + unregistered → the (boxed) default value;
-    /// required + unregistered → a lazily-thrown <see cref="ServiceTypeNotRegistered"/> (matching
-    /// <c>GetRequiredService</c>). The optional/required split uses the existing <c>DefaultValue != null</c>
-    /// proxy (an explicit <c>null</c> default is treated as required) — reproduced, not "fixed".
+    /// Builds the expression for a single dependency typed as <paramref name="targetType"/>: the resolved value
+    /// when <paramref name="child"/> is supplied, the <paramref name="defaultValue"/> when one exists, otherwise
+    /// a throw of <see cref="ServiceTypeNotRegistered"/>.
     /// </summary>
+    /// <param name="child">The resolver for the dependency, or <see langword="null"/> when it is not registered.</param>
+    /// <param name="targetType">The type the resulting expression is converted to.</param>
+    /// <param name="defaultValue">The default value to use when <paramref name="child"/> is <see langword="null"/>; <see langword="null"/> when the dependency is required.</param>
+    /// <param name="scopeParameter">The scope parameter passed to the resolver.</param>
+    /// <returns>An <see cref="Expression"/> producing the dependency value as <paramref name="targetType"/>.</returns>
     private static Expression BuildDependencyExpression(Func<DefaultServiceScopeProvider, object?>? child, Type targetType, object? defaultValue, ParameterExpression scopeParameter)
     {
         if (child != null)
@@ -240,12 +248,17 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Builds a constructor-argument expression. In frozen mode (<paramref name="shouldInline"/> non-null), a
-    /// simple inlinable transient dependency is constructed INLINE — its <c>new</c> is emitted recursively
-    /// instead of a delegate invoke — eliminating the per-node hop. All other dependencies (scoped, singleton,
-    /// disposable/property-bearing transients, factories, built-ins, unregistered) go through the captured child
-    /// resolver exactly as in mutable mode.
+    /// Builds the expression that supplies the constructor argument described by <paramref name="parameter"/>,
+    /// either by constructing an inlinable dependency directly or by resolving it through
+    /// <paramref name="resolveChild"/>.
     /// </summary>
+    /// <param name="parameter">Cached metadata for the constructor parameter being supplied.</param>
+    /// <param name="scopeParameter">The scope parameter passed to the resolvers.</param>
+    /// <param name="resolveChild">Supplies the resolver for the dependency.</param>
+    /// <param name="shouldInline">Callback selecting dependencies to construct inline, or <see langword="null"/> to always resolve through <paramref name="resolveChild"/>.</param>
+    /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles; may be <see langword="null"/>.</param>
+    /// <returns>An <see cref="Expression"/> producing the argument value as the parameter type.</returns>
+    /// <exception cref="CircularDependencyException">A cycle is detected among the inlined dependencies.</exception>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation whose annotated metadata is preserved through the closure that produced it.")]
@@ -290,11 +303,15 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Recursively builds the <c>new T(...)</c> expression for an inlinable transient (no <c>[Inject]</c>
-    /// properties, non-disposable, constructor-backed — guaranteed by <see cref="IsInlinableTransientImplementation"/>),
-    /// inlining its inlinable transient children in turn. Pure construction: no property block, no disposal
-    /// tracking (the type is non-disposable).
+    /// Builds the construction expression for an inlinable dependency of type <paramref name="inlineType"/>,
+    /// recursively inlining its own inlinable dependencies.
     /// </summary>
+    /// <param name="inlineType">The implementation type to construct inline; must satisfy <see cref="IsInlinableTransientImplementation"/>.</param>
+    /// <param name="scopeParameter">The scope parameter passed to the resolvers.</param>
+    /// <param name="resolveChild">Supplies the resolver for each dependency.</param>
+    /// <param name="shouldInline">Callback selecting which dependencies to construct inline.</param>
+    /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles.</param>
+    /// <returns>A <see cref="NewExpression"/> that constructs <paramref name="inlineType"/>.</returns>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation; its constructor metadata is resolved via the same annotated path as construction.")]
@@ -313,10 +330,12 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Whether a closed implementation type is a "simple" transient that can be constructed inline in frozen
-    /// mode: it has a usable public constructor, is NOT disposable (so it needs no per-instance disposal
-    /// tracking), and has NO <c>[Inject]</c> properties (so its construction is a pure <c>new</c>).
+    /// Determines whether <paramref name="closedImplementationType"/> can be constructed directly: it has a
+    /// usable public constructor, does not implement <see cref="IDisposable"/>, and has no
+    /// <see cref="InjectAttribute"/> properties.
     /// </summary>
+    /// <param name="closedImplementationType">The closed implementation type to test.</param>
+    /// <returns><see langword="true"/> if the type can be constructed directly; otherwise, <see langword="false"/>.</returns>
     internal bool IsInlinableTransientImplementation([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type closedImplementationType)
     {
         if (closedImplementationType.IsInterface || closedImplementationType.IsAbstract)
@@ -335,10 +354,12 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Exposes the construct-time dependencies (constructor parameters + <c>[Inject]</c> properties) of a closed
-    /// implementation type for eager validation. Returns <c>false</c> when the type has no usable public
-    /// constructor. Does not construct anything.
+    /// Gets the construct-time dependencies (constructor parameters and <see cref="InjectAttribute"/> properties)
+    /// of <paramref name="closedImplementationType"/>.
     /// </summary>
+    /// <param name="closedImplementationType">The closed implementation type to inspect.</param>
+    /// <param name="dependencies">When this method returns, contains the dependencies of the type, or an empty list when the type has no usable constructor.</param>
+    /// <returns><see langword="true"/> if the type has a usable public constructor; otherwise, <see langword="false"/>.</returns>
     internal bool TryGetDependencies(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type closedImplementationType,
         out IReadOnlyList<ServiceDependencyInfo> dependencies)
@@ -366,8 +387,10 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Gets or creates comprehensive metadata for a type including constructor, parameters, and properties.
+    /// Gets the cached <see cref="TypeMetadata"/> for the specified type, building and caching it on first access.
     /// </summary>
+    /// <param name="type">The type whose metadata is requested.</param>
+    /// <returns>The cached metadata describing the type's constructor and injectable properties.</returns>
     [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = "The BuildTypeMetadata delegate correctly preserves all DynamicallyAccessedMembers annotations through the GetOrAdd call.")]
     private static TypeMetadata GetTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
@@ -375,8 +398,11 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Builds comprehensive metadata for a type.
+    /// Builds the <see cref="TypeMetadata"/> for the specified type, including its selected constructor, a
+    /// compiled invoker, cached parameter metadata, and injectable properties.
     /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>A new <see cref="TypeMetadata"/> describing the type.</returns>
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "ParameterInfo.ParameterType from constructor parameters inherits the DynamicallyAccessedMembers requirements from the declaring type's constructor analysis.")]
     private static TypeMetadata BuildTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
@@ -450,11 +476,14 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Resolves a single constructor argument from the provider. Invoked by the compiled per-type invoker so
-    /// arguments are resolved without allocating an <c>object?[]</c> per construction. Behavior (required vs.
-    /// optional, keyed vs. non-keyed, default-value fallback) and the thrown exception/message are identical
-    /// to the original inline resolution loop.
+    /// Resolves a single constructor argument from the provider, honoring keyed and default-value handling.
     /// </summary>
+    /// <param name="param">Cached metadata for the constructor parameter to resolve.</param>
+    /// <param name="declaringType">The type declaring the constructor, used for diagnostic messages.</param>
+    /// <param name="serviceProvider">The provider used to resolve non-keyed services.</param>
+    /// <param name="keyedServiceProvider">The provider used to resolve keyed services, or <see langword="null"/> when keyed resolution is unsupported.</param>
+    /// <returns>The resolved argument value, or the parameter's default value when the service is not registered.</returns>
+    /// <exception cref="InvalidOperationException">The parameter requires a keyed service but <paramref name="keyedServiceProvider"/> is <see langword="null"/>.</exception>
     private static object? ResolveConstructorArgument(ParameterCacheInfo param, Type declaringType, IServiceProvider serviceProvider, IKeyedServiceProvider? keyedServiceProvider)
     {
         bool hasDefaultValue = param.DefaultValue != null;
@@ -475,8 +504,11 @@ public partial class DefaultServiceFactory : IServiceFactory
     }
 
     /// <summary>
-    /// Selects the best constructor for a type.
+    /// Selects the constructor to use for the specified type: the only public constructor, the one marked with
+    /// <see cref="PreferredConstructorAttribute"/>, or otherwise the public constructor with the most parameters.
     /// </summary>
+    /// <param name="instanceType">The type whose constructor is selected.</param>
+    /// <returns>The selected <see cref="ConstructorInfo"/>, or <see langword="null"/> when the type has no public constructor.</returns>
     private static ConstructorInfo? SelectConstructor([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type instanceType)
     {
         var constructors = instanceType.GetConstructors();
@@ -529,7 +561,7 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         public ConstructorInvokerInfo? ConstructorInvoker { get; }
 
-        /// <summary>Cached constructor-parameter metadata (used by the Tier 2 node compiler).</summary>
+        /// <summary>Gets the cached metadata for the selected constructor's parameters.</summary>
         public ParameterCacheInfo[] Parameters { get; }
 
         public PropertyCacheInfo[] InjectableProperties { get; }
@@ -627,8 +659,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         }
 
         /// <summary>
-        /// The compiled setter, exposed so the Tier 2 node compiler can invoke it via a public
-        /// <see cref="Action{T1, T2}"/> constant (the expression never references this private type).
+        /// Gets the compiled setter that assigns the property value, as an <see cref="Action{T1, T2}"/>.
         /// </summary>
         public Action<object, object?> Setter => _compiledSetter;
 

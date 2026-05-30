@@ -1,3 +1,5 @@
+using Snowberry.DependencyInjection.Abstractions.Interfaces;
+
 namespace Snowberry.DependencyInjection.Abstractions;
 
 /// <summary>

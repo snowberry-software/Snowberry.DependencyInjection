@@ -1,5 +1,8 @@
 ﻿namespace Snowberry.DependencyInjection;
 
+/// <summary>
+/// Specifies the options used to configure the behavior of a service container.
+/// </summary>
 [Flags]
 public enum ServiceContainerOptions : byte
 {

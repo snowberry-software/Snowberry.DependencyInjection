@@ -5,7 +5,11 @@ using Snowberry.DependencyInjection.Implementation;
 
 namespace Snowberry.DependencyInjection.Lookup;
 
-/// <see cref="IServiceFactory"/>.
+/// <summary>
+/// Default <see cref="IScope"/> implementation that resolves services through the owning
+/// <see cref="ServiceContainer"/>, caches scoped instances for the lifetime of the scope, and disposes the
+/// instances it owns when the scope is disposed.
+/// </summary>
 public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServiceProvider
 {
     /// <inheritdoc/>
@@ -28,6 +32,11 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     // with correct memory ordering.
     private volatile Dictionary<ServiceIdentifier, object>? _scopedInstances;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultServiceScopeProvider"/> class.
+    /// </summary>
+    /// <param name="rootProvider">The container that resolves services for this scope.</param>
+    /// <param name="isRootScope"><see langword="true"/> if this scope is the container's global scope; otherwise, <see langword="false"/>.</param>
     public DefaultServiceScopeProvider(ServiceContainer rootProvider, bool isRootScope)
     {
         _rootProvider = rootProvider;
@@ -41,9 +50,11 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     }
 
     /// <summary>
-    /// Hot-path overload that takes the concrete <see cref="ServiceIdentifier"/> by reference so the scoped
-    /// cache lookup does not box the struct key to <see cref="IServiceIdentifier"/>.
+    /// Attempts to retrieve a previously cached scoped instance for the specified <paramref name="serviceIdentifier"/>.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service to look up.</param>
+    /// <param name="instance">When this method returns <see langword="true"/>, contains the cached instance; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if a cached instance was found; otherwise, <see langword="false"/>.</returns>
     internal bool TryGetScopedInstance(in ServiceIdentifier serviceIdentifier, [NotNullWhen(true)] out object? instance)
     {
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
@@ -65,9 +76,10 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     }
 
     /// <summary>
-    /// Hot-path overload that takes the concrete <see cref="ServiceIdentifier"/> by reference so caching does
-    /// not box the struct key.
+    /// Caches <paramref name="instance"/> for the specified <paramref name="serviceIdentifier"/> in this scope.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service to cache.</param>
+    /// <param name="instance">The instance to cache for the identifier.</param>
     internal void AddCached(in ServiceIdentifier serviceIdentifier, object instance)
     {
         lock (_lock)
@@ -79,11 +91,12 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
 
     /// <summary>
     /// Atomically caches <paramref name="instance"/> for <paramref name="serviceIdentifier"/> unless another
-    /// thread already cached one. Returns <c>true</c> when this instance won and was stored; returns
-    /// <c>false</c> and the previously-cached <paramref name="existing"/> instance otherwise. Only the
-    /// per-scope lock is taken — the caller constructs the instance *outside* any lock so a nested resolution
-    /// that needs the container lock cannot invert lock order.
+    /// thread already cached one.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service to cache.</param>
+    /// <param name="instance">The instance to cache when no instance is already cached.</param>
+    /// <param name="existing">When this method returns <see langword="false"/>, contains the instance that was already cached; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if <paramref name="instance"/> was stored; otherwise, <see langword="false"/>.</returns>
     internal bool TryAddScopedInstance(in ServiceIdentifier serviceIdentifier, object instance, out object? existing)
     {
         lock (_lock)
@@ -101,11 +114,14 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     }
 
     /// <summary>
-    /// Copy-on-write helper: returns a new dictionary containing <paramref name="current"/>'s entries plus the
-    /// added one. The previous dictionary is left untouched so concurrent lock-free readers stay safe. Called
-    /// only under <see cref="_lock"/> (writers are serialized; the per-scope clone cost is paid on the cold path
-    /// and is bounded by the number of distinct scoped services resolved in this scope).
+    /// Returns a new dictionary containing the entries of <paramref name="current"/> plus an entry mapping
+    /// <paramref name="serviceIdentifier"/> to <paramref name="instance"/>.
     /// </summary>
+    /// <param name="current">The existing entries to copy, or <see langword="null"/> to start empty.</param>
+    /// <param name="serviceIdentifier">The identifier to add or overwrite.</param>
+    /// <param name="instance">The instance to associate with the identifier.</param>
+    /// <returns>A new dictionary with the combined entries.</returns>
+    // Copy-on-write: the previous dictionary is left untouched so lock-free readers stay safe. Call under _lock.
     private static Dictionary<ServiceIdentifier, object> CloneWith(Dictionary<ServiceIdentifier, object>? current, in ServiceIdentifier serviceIdentifier, object instance)
     {
         var next = current == null
@@ -117,9 +133,11 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     }
 
     /// <summary>
-    /// Converts a public <see cref="IServiceIdentifier"/> to the concrete struct, unboxing when it already is
-    /// one and reconstructing from its type/key otherwise (equality is by service type + key).
+    /// Converts a public <see cref="IServiceIdentifier"/> into the concrete <see cref="ServiceIdentifier"/>
+    /// value used as the scoped-cache key.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier to convert.</param>
+    /// <returns>The equivalent <see cref="ServiceIdentifier"/>.</returns>
     private static ServiceIdentifier AsStruct(IServiceIdentifier serviceIdentifier)
     {
         return serviceIdentifier as ServiceIdentifier?
@@ -127,18 +145,18 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     }
 
     /// <summary>
-    /// Tracks a freshly-created disposable instance for this scope, bypassing the public dedupe scan
-    /// (the instance is provably new). See <see cref="DisposableContainer.AddDisposableUnchecked"/>.
+    /// Registers <paramref name="instance"/> so it is disposed together with this scope.
     /// </summary>
+    /// <param name="instance">The disposable instance to track.</param>
     internal void TrackNewDisposable(object instance)
     {
         _disposableContainer.AddDisposableUnchecked(instance);
     }
 
     /// <summary>
-    /// Disposes the core.
+    /// Marks the scope as disposed if it was not already, reporting whether disposal had already occurred.
     /// </summary>
-    /// <returns>Whether the core is already disposed.</returns>
+    /// <returns><see langword="true"/> if the scope was already disposed before this call; otherwise, <see langword="false"/>.</returns>
     private bool DisposeCore()
     {
         if (_isDisposed)

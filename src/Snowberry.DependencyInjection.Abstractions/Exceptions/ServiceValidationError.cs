@@ -1,13 +1,14 @@
 using System;
+using Snowberry.DependencyInjection.Abstractions.Attributes;
 
 namespace Snowberry.DependencyInjection.Abstractions.Exceptions;
 
 /// <summary>
-/// The kind of problem found by <c>ServiceContainer.Validate</c> / <c>TryValidate</c>.
+/// Describes the kind of problem found while validating the registered service graph.
 /// </summary>
 public enum ServiceValidationErrorKind
 {
-    /// <summary>A required constructor parameter or <c>[Inject]</c> property dependency is not registered.</summary>
+    /// <summary>A required constructor parameter or <see cref="InjectAttribute"/> property dependency is not registered.</summary>
     MissingDependency,
 
     /// <summary>A circular dependency was detected.</summary>
@@ -18,11 +19,18 @@ public enum ServiceValidationErrorKind
 }
 
 /// <summary>
-/// A single problem found while eagerly validating the registered service graph. Collected (not thrown) by
-/// <c>ServiceContainer.TryValidate</c> so every problem is reported at once.
+/// Represents a single problem found when validating the registered service graph.
 /// </summary>
 public sealed class ServiceValidationError
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ServiceValidationError"/> class.
+    /// </summary>
+    /// <param name="kind">The kind of problem that was found.</param>
+    /// <param name="serviceType">The registered service the problem was found under.</param>
+    /// <param name="message">A human-readable description of the problem.</param>
+    /// <param name="dependencyType">The offending dependency type, or <see langword="null"/> when not applicable.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="serviceType"/> or <paramref name="message"/> is <see langword="null"/>.</exception>
     public ServiceValidationError(ServiceValidationErrorKind kind, Type serviceType, string message, Type? dependencyType = null)
     {
         Kind = kind;

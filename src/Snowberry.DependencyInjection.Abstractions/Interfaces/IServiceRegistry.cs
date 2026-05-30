@@ -52,7 +52,7 @@ public interface IServiceRegistry
     /// Checks whether the given <typeparamref name="T"/> is registered.
     /// </summary>
     /// <param name="serviceKey">The optional service key.</param>
-    /// <typeparam name="T">The type of the service.</param>
+    /// <typeparam name="T">The type of the service.</typeparam>
     /// <returns>Whether the given <typeparamref name="T"/> is registered or not.</returns>
     bool IsServiceRegistered<T>(object? serviceKey);
 

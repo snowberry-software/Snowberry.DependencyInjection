@@ -80,8 +80,15 @@ public partial class ServiceContainer
     }
 
     /// <summary>
-    /// Internal method to unregister service. Must be called within a write lock.
+    /// Removes the service registration identified by <paramref name="serviceType"/> and
+    /// <paramref name="serviceKey"/>, disposing the associated singleton instance if it is disposable.
     /// </summary>
+    /// <param name="serviceType">The type of the service to unregister.</param>
+    /// <param name="serviceKey">The optional key identifying the registration, or <see langword="null"/> for the default registration.</param>
+    /// <param name="successful"><see langword="true"/> when a matching registration was found and removed; otherwise <see langword="false"/>.</param>
+    /// <returns>The current <see cref="ServiceContainer"/> instance.</returns>
+    /// <exception cref="ServiceRegistryReadOnlyException">The container is frozen or the service registry is read-only.</exception>
+    // Must be called while holding _lock.
     private ServiceContainer UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
     {
         if (_frozen)

@@ -23,6 +23,7 @@
         <RepositoryUrl>https://github.com/snowberry-software/DependencyInjection.git</RepositoryUrl>
 
         <NukeMarkPackable>true</NukeMarkPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
     <PropertyGroup>

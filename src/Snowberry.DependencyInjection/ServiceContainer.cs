@@ -12,21 +12,18 @@ using Snowberry.DependencyInjection.Lookup;
 namespace Snowberry.DependencyInjection;
 
 /// <summary>
-/// A realized resolver for a single service: given the current resolution scope it returns the instance
-/// (or <c>null</c> for an unregistered service). Built on the first (cold) resolve and cached; the warm path
-/// is a single dictionary lookup + this invoke. Must be side-effect-free to build — it may construct
-/// instances only when invoked, never at build time.
+/// Resolves the child resolver for a single dependency given its type and optional key, or returns
+/// <see langword="null"/> when the dependency is not registered and is not a built-in service.
 /// </summary>
-/// <summary>
-/// Supplied by the container to the node compiler (Tier 2): returns the child resolver for a constructor
-/// parameter / injectable property dependency, or <c>null</c> when the dependency is not registered (and is not
-/// a built-in). The compiler bakes a throw (required) or the default (optional) for the <c>null</c> case.
-/// A resolver is <c>Func&lt;DefaultServiceScopeProvider, object?&gt;</c> — fully public types, so the compiled
-/// expression that invokes a captured child does not reference a non-public delegate.
-/// </summary>
+/// <param name="dependencyType">The dependency service type to resolve a resolver for.</param>
+/// <param name="dependencyKey">The optional service key of the dependency, or <see langword="null"/> for an unkeyed dependency.</param>
+/// <returns>
+/// A resolver that produces the dependency instance for a given <see cref="DefaultServiceScopeProvider"/>,
+/// or <see langword="null"/> when the dependency is not registered and is not a built-in service.
+/// </returns>
 internal delegate Func<DefaultServiceScopeProvider, object?>? ChildResolverFactory(Type dependencyType, object? dependencyKey);
 
-/// <inheritdoc cref="IServiceContainer"/>.
+/// <inheritdoc cref="IServiceContainer"/>
 public partial class ServiceContainer : IServiceContainer
 {
     private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(ServiceIdentifierComparer.Instance);
@@ -83,9 +80,9 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Disposes the core.
+    /// Marks the container as disposed if it was not already, reporting whether disposal had already occurred.
     /// </summary>
-    /// <returns>Whether the core is already disposed.</returns>
+    /// <returns><see langword="true"/> if the container was already disposed before this call; otherwise, <see langword="false"/>.</returns>
     private bool DisposeCore()
     {
         if (_isDisposed)
@@ -141,9 +138,11 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Looks up the descriptor for an already-built <see cref="ServiceIdentifier"/>, avoiding a second
-    /// identifier construction/hash on the resolve hot path.
+    /// Looks up the service descriptor for an already-constructed <see cref="ServiceIdentifier"/>, resolving a
+    /// closed generic from a matching open-generic registration when present.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service to look up.</param>
+    /// <returns>The matching <see cref="IServiceDescriptor"/>, or <see langword="null"/> if no registration matches.</returns>
     private IServiceDescriptor? GetOptionalServiceDescriptor(in ServiceIdentifier serviceIdentifier)
     {
         // Fast path: try to read without any locking first (using ConcurrentDictionary's thread safety)
@@ -261,11 +260,13 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Cold path for a null-key resolve: build (and publish) the resolver eagerly over its subtree, then invoke.
-    /// Both cache generations are captured once so the whole subtree publishes consistently; a concurrent
-    /// invalidation swap just makes this build land in the abandoned generation (harmless — the next resolve
-    /// rebuilds). A duplicate build under contention is harmless (build is side-effect-free; last writer wins).
+    /// Resolves an unkeyed service, building and caching its resolver on first use, and returns the resulting
+    /// instance, or <see langword="null"/> when the service is unregistered and not a built-in.
     /// </summary>
+    /// <param name="serviceType">The unkeyed service type to resolve.</param>
+    /// <param name="scope">The scope the instance is resolved in.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services to read from and populate.</param>
+    /// <returns>The resolved service instance, or <see langword="null"/> if it is unregistered and not a built-in service.</returns>
     private object? BuildAndCacheNullKey(Type serviceType, DefaultServiceScopeProvider scope, ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache)
     {
         var keyedCache = _keyedResolvers;
@@ -277,8 +278,13 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Cold path for a keyed resolve. See <see cref="BuildAndCacheNullKey"/>.
+    /// Resolves a keyed service, building and caching its resolver on first use, and returns the resulting
+    /// instance, or <see langword="null"/> when the service is unregistered.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier (type and key) of the service to resolve.</param>
+    /// <param name="scope">The scope the instance is resolved in.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services to read from and populate.</param>
+    /// <returns>The resolved service instance, or <see langword="null"/> if it is unregistered.</returns>
     private object? BuildAndCacheKeyed(ServiceIdentifier serviceIdentifier, DefaultServiceScopeProvider scope, ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache)
     {
         var nullKeyCache = _nullKeyResolvers;
@@ -313,10 +319,7 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Memoizes the built-in-service classification per <see cref="Type"/>. The result is fixed for a given
-    /// type, so the seven <see cref="Type.IsAssignableFrom(Type)"/> probes only run on the first resolve of
-    /// each type; every later null-key resolve is a single cache hit. Behavior is identical to the ladder
-    /// (including the derived-interface case) — only the cost is amortized.
+    /// Caches, per <see cref="Type"/>, whether the type is a built-in service provided by the container.
     /// </summary>
     private static readonly ConcurrentDictionary<Type, bool> _builtInServiceCache = new();
 
@@ -333,13 +336,15 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Returns the resolver for a service from the captured cache generation, building (and publishing) it on a
-    /// miss. Returns <c>null</c> only for an unregistered, non-built-in service — the node compiler then bakes a
-    /// throw for a required dependency or the default for an optional one. Built recursively with eager subtree
-    /// construction; <paramref name="buildPath"/> detects cycles (→ <see cref="CircularDependencyException"/>).
-    /// Side-effect-free: it compiles/captures only and constructs no instance (singletons construct lazily on
-    /// first invoke).
+    /// Returns the resolver for the given service, building and caching it on a cache miss.
     /// </summary>
+    /// <param name="serviceType">The service type to resolve a resolver for.</param>
+    /// <param name="serviceKey">The optional service key, or <see langword="null"/> for an unkeyed service.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services to read from and populate.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services to read from and populate.</param>
+    /// <param name="buildPath">The chain of service identifiers currently being built, used to detect circular dependencies.</param>
+    /// <returns>The resolver for the service, or <see langword="null"/> if it is unregistered and not a built-in service.</returns>
+    /// <exception cref="CircularDependencyException">A circular dependency is detected while building the resolver.</exception>
     private Func<DefaultServiceScopeProvider, object?>? GetOrBuildResolver(
         Type serviceType,
         object? serviceKey,
@@ -407,10 +412,15 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Wraps a node's pure construct delegate with the lifetime behavior (per-scope/singleton caching, locks,
-    /// scope-validation, disposal tracking). The construct is the compiled graph node (Tier 2), a custom
-    /// <c>InstanceFactory</c> call, or the by-type <see cref="IServiceFactory.CreateInstance"/> fallback.
+    /// Wraps the construction delegate for a service with the behavior required by its
+    /// <see cref="IServiceDescriptor.Lifetime"/> (transient, scoped, or singleton caching and disposal tracking).
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier (type and key) of the service.</param>
+    /// <param name="serviceDescriptor">The descriptor describing the service's lifetime and implementation.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services.</param>
+    /// <param name="buildPath">The chain of service identifiers currently being built, used to detect circular dependencies.</param>
+    /// <returns>A resolver that applies the service's lifetime behavior to the constructed instance.</returns>
     private Func<DefaultServiceScopeProvider, object?> BuildLifetimeResolver(
         ServiceIdentifier serviceIdentifier,
         IServiceDescriptor serviceDescriptor,
@@ -447,11 +457,16 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Builds the pure construct delegate (returns a fresh, non-null instance): a custom <c>InstanceFactory</c>
-    /// call, a compiled graph node that invokes captured child resolvers directly (default factory), or the
-    /// by-type <see cref="IServiceFactory.CreateInstance"/> fallback (custom factory). The construct threads its
-    /// scope argument to child resolvers; the lifetime wrapper chooses the scope (request vs. <c>RootScope</c>).
+    /// Builds the delegate that constructs a fresh, non-<see langword="null"/> instance of the service, using its
+    /// custom <see cref="IServiceDescriptor.InstanceFactory"/> when present, otherwise the configured
+    /// <see cref="IServiceFactory"/>.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier (type and key) of the service.</param>
+    /// <param name="serviceDescriptor">The descriptor describing the service's implementation.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services.</param>
+    /// <param name="buildPath">The chain of service identifiers currently being built, used to detect circular dependencies.</param>
+    /// <returns>A delegate that constructs a new instance of the service for a given scope.</returns>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
@@ -495,11 +510,13 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Frozen-mode inline selector: returns the closed implementation type to inline when the dependency is a
-    /// simple transient (constructor-backed, non-disposable, no <c>[Inject]</c> properties), else <c>null</c>
-    /// (the dependency goes through its captured resolver — preserving scoped/singleton caching, factories,
-    /// disposal tracking, built-ins, and unregistered throw/default behavior).
+    /// Determines whether a dependency may be constructed directly while the container is frozen, returning the
+    /// closed implementation type to use when it is a simple transient, or <see langword="null"/> otherwise.
     /// </summary>
+    /// <param name="dependencyType">The dependency service type being evaluated.</param>
+    /// <param name="dependencyKey">The optional service key of the dependency, or <see langword="null"/> for an unkeyed dependency.</param>
+    /// <param name="defaultFactory">The default service factory used to validate the candidate implementation type.</param>
+    /// <returns>The closed implementation type to construct directly, or <see langword="null"/> if the dependency must be resolved through its own resolver.</returns>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The closed implementation type carries the same DynamicallyAccessedMembers requirements as the descriptor's annotated ImplementationType.")]
@@ -606,9 +623,13 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Produces the singleton constant-bake action that publishes the resolved instance into the captured cache
-    /// generation for <paramref name="serviceIdentifier"/>.
+    /// Creates an action that stores a resolver into the resolver cache that matches
+    /// <paramref name="serviceIdentifier"/>.
     /// </summary>
+    /// <param name="serviceIdentifier">The identifier (type and key) of the singleton service.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services.</param>
+    /// <returns>An action that publishes the supplied resolver into the cache matching <paramref name="serviceIdentifier"/>.</returns>
     private static Action<Func<DefaultServiceScopeProvider, object?>> RebakeFor(
         ServiceIdentifier serviceIdentifier,
         ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
@@ -624,11 +645,12 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Returns the closed generic type arguments only when the implementation is an open generic definition
-    /// that <see cref="IServiceFactory.CreateInstance"/> must close via <c>MakeGenericType</c>. For every other
-    /// (non-generic) implementation the factory ignores the argument, so we avoid the <c>Type[]</c> the
-    /// <see cref="Type.GenericTypeArguments"/> property would otherwise copy on each resolve.
+    /// Returns the closed generic type arguments when the descriptor's implementation is an open generic
+    /// definition that <see cref="IServiceFactory.CreateInstance"/> must close via
+    /// <see cref="Type.MakeGenericType(Type[])"/>; otherwise returns <see langword="null"/>.
     /// </summary>
+    /// <param name="serviceDescriptor">The descriptor whose implementation type is examined.</param>
+    /// <returns>The closed generic type arguments, or <see langword="null"/> when the implementation is not an open generic definition.</returns>
     private static Type[]? GetClosedGenericTypeArguments(IServiceDescriptor serviceDescriptor)
     {
         return serviceDescriptor.ImplementationType.IsGenericTypeDefinition
@@ -637,12 +659,10 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Drops every compiled resolver by swapping in fresh, empty caches. Called after a registration mutation
-    /// (<see cref="Register"/> / unregister) under <see cref="_lock"/>. In-flight resolves finish against the
-    /// generation they captured; new resolves rebuild lazily against the empty caches. NOTE: this is the only
-    /// place the resolver caches are invalidated — the closed-generic auto-cache in
-    /// <see cref="GetOptionalServiceDescriptor(in ServiceIdentifier)"/> must NOT call it.
+    /// Invalidates all cached resolvers so that subsequent resolves rebuild against the current registrations.
     /// </summary>
+    // Call only from Register / UnregisterServiceInternal under _lock; the closed-generic auto-cache in
+    // GetOptionalServiceDescriptor must NOT call it.
     private void InvalidateResolverCaches()
     {
         _nullKeyResolvers = new();
@@ -650,7 +670,7 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// The service factory that will be used.
+    /// Gets the <see cref="IServiceFactory"/> used by the container to construct service instances.
     /// </summary>
     public IServiceFactory ServiceFactory { get; }
 
@@ -706,8 +726,8 @@ public partial class ServiceContainer : IServiceContainer
     public bool ValidateScopes => (Options & ServiceContainerOptions.ValidateScopes) == ServiceContainerOptions.ValidateScopes;
 
     /// <summary>
-    /// Gets whether the container has been frozen via <see cref="Freeze"/>. A frozen container rejects further
-    /// registration changes and uses the immutable, fully-inlined frozen resolver pipeline.
+    /// Gets a value indicating whether the container has been frozen via <see cref="Freeze"/>. A frozen
+    /// container rejects further registration changes.
     /// </summary>
     public bool IsFrozen => _frozen;
 
