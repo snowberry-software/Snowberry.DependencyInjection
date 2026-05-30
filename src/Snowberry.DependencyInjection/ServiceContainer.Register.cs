@@ -52,6 +52,9 @@ public partial class ServiceContainer
                 UnregisterServiceInternal(serviceDescriptor.ServiceType, serviceKey, out _);
 
             _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
+
+            // The registration set changed → discard all compiled resolvers (they captured the old generation).
+            InvalidateResolverCaches();
             return this;
         }
     }
@@ -92,6 +95,9 @@ public partial class ServiceContainer
                 _rootScope.DisposableContainer.RemoveDisposable(disposableSingleton);
                 disposableSingleton.Dispose();
             }
+
+            // The registration set changed → discard all compiled resolvers (they captured the old generation).
+            InvalidateResolverCaches();
 
             successful = true;
             return this;
