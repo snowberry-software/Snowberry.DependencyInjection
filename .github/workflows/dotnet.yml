@@ -26,10 +26,10 @@ jobs:
     env:
       BUILD_CONFIGURATION: ${{ (github.ref_name == 'main' || github.ref_name == 'master' || startsWith(github.ref_name, 'release/')) && 'Release' || 'Debug' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.x
@@ -62,10 +62,10 @@ jobs:
     env:
       BUILD_CONFIGURATION: ${{ (github.ref_name == 'main' || github.ref_name == 'master' || startsWith(github.ref_name, 'release/')) && 'Release' || 'Debug' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.x
@@ -93,10 +93,10 @@ jobs:
     env:
       NUGET_KEY: ${{ secrets.NUGET_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.x

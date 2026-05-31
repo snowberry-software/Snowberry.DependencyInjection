@@ -1,8 +1,7 @@
 # Architecture
 
 How `Snowberry.DependencyInjection` resolves services, and how the container moves from its default mutable
-state into the opt-in frozen state. (The diagrams below use Mermaid and render on GitHub; this document is not
-shipped in the NuGet package.)
+state into the opt-in frozen state.
 
 ## Resolution: the compiled resolver graph
 
