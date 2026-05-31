@@ -107,4 +107,4 @@ jobs:
         run: dotnet pack ${{ env.SOLUTION }} --configuration Release --output ${{ env.PACKAGE_OUTPUT }} --nologo --verbosity quiet
 
       - name: Publish to NuGet
-        run: dotnet nuget push "${{ env.PACKAGE_OUTPUT }}/*.nupkg" --api-key "$env:NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "${{ env.PACKAGE_OUTPUT }}/*.nupkg" --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
