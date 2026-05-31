@@ -467,9 +467,8 @@ public partial class ServiceContainer : IServiceContainer
     /// <param name="keyedCache">The resolver cache for keyed services.</param>
     /// <param name="buildPath">The chain of service identifiers currently being built, used to detect circular dependencies.</param>
     /// <returns>A delegate that constructs a new instance of the service for a given scope.</returns>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Compiles the resolver via Expression.Compile and calls IServiceFactory.CreateInstance ([RequiresDynamicCode]). Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresDynamicCode].")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Calls IServiceFactory.CreateInstance ([RequiresUnreferencedCode]); implementation members are preserved via the descriptor's annotated ImplementationType. Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresUnreferencedCode].")]
     private Func<DefaultServiceScopeProvider, object> BuildConstruct(
         ServiceIdentifier serviceIdentifier,
         IServiceDescriptor serviceDescriptor,
@@ -517,10 +516,8 @@ public partial class ServiceContainer : IServiceContainer
     /// <param name="dependencyKey">The optional service key of the dependency, or <see langword="null"/> for an unkeyed dependency.</param>
     /// <param name="defaultFactory">The default service factory used to validate the candidate implementation type.</param>
     /// <returns>The closed implementation type to construct directly, or <see langword="null"/> if the dependency must be resolved through its own resolver.</returns>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The closed implementation type carries the same DynamicallyAccessedMembers requirements as the descriptor's annotated ImplementationType.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Reached only from Freeze(). MakeGenericType closes an open-generic implementation type the user registered (AOT consumers must register closed generic types); requires dynamic code.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "MakeGenericType closes the descriptor's already-registered ImplementationType, whose members are preserved via its [DynamicallyAccessedMembers] annotation.")]
     private Type? FrozenInlineType(Type dependencyType, object? dependencyKey, DefaultServiceFactory defaultFactory)
     {
         if (dependencyKey is null && IsBuiltInService(dependencyType))

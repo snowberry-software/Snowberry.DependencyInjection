@@ -80,10 +80,8 @@ public partial class ServiceContainer
         return collected.Count == 0;
     }
 
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The closed implementation type carries the same DynamicallyAccessedMembers requirements as the descriptor's annotated ImplementationType.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Reached only from Validate()/TryValidate(). MakeGenericType closes an open-generic implementation type the user registered (AOT consumers must register closed generic types) to validate it; requires dynamic code.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "MakeGenericType closes the descriptor's already-registered ImplementationType, whose members are preserved via its [DynamicallyAccessedMembers] annotation.")]
     private void ValidateNode(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, List<ServiceIdentifier> path, HashSet<ServiceIdentifier> validatedOk, List<ServiceValidationError> errors)
     {
         // Open-generic registration: cannot be closed without type arguments → structural-only (skip).

@@ -40,8 +40,6 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <inheritdoc/>
     [RequiresUnreferencedCode("Generic type parameters cannot be statically analyzed. Ensure all types passed have the required public constructors and properties.")]
     [RequiresDynamicCode("Constructing generic types requires dynamic code generation.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     public object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, IServiceProvider serviceProvider, Type[]? genericTypeArguments = null)
     {
         _ = type ?? throw new ArgumentNullException(nameof(type));
@@ -130,9 +128,8 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <returns>A delegate that produces a constructed instance for a given <see cref="DefaultServiceScopeProvider"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>, or <paramref name="type"/> is a generic type definition and <paramref name="genericTypeArguments"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidServiceImplementationType"><paramref name="type"/> is an interface or abstract class.</exception>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Closes an open generic via MakeGenericType and compiles the resolver with Expression.Compile. Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresDynamicCode]; AOT consumers must register closed generic types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "MakeGenericType closes an already-registered implementation type whose members are preserved via the descriptor's [DynamicallyAccessedMembers] ImplementationType annotation.")]
     internal Func<DefaultServiceScopeProvider, object> CompileNode(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type,
         Type[]? genericTypeArguments,
@@ -259,10 +256,7 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles; may be <see langword="null"/>.</param>
     /// <returns>An <see cref="Expression"/> producing the argument value as the parameter type.</returns>
     /// <exception cref="CircularDependencyException">A cycle is detected among the inlined dependencies.</exception>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation whose annotated metadata is preserved through the closure that produced it.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type originates from a registered descriptor's ImplementationType, which is annotated [DynamicallyAccessedMembers(PublicConstructors | PublicProperties)]. The shouldInline delegate boundary erases the static annotation, but the constructor and property members are preserved.")]
     private Expression BuildArgumentExpression(ParameterCacheInfo parameter, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?>? shouldInline, List<ServiceIdentifier>? inlineVisiting)
     {
         if (shouldInline != null)
@@ -312,10 +306,6 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <param name="shouldInline">Callback selecting which dependencies to construct inline.</param>
     /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles.</param>
     /// <returns>A <see cref="NewExpression"/> that constructs <paramref name="inlineType"/>.</returns>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type is a registered implementation; its constructor metadata is resolved via the same annotated path as construction.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generic type instantiation is supported through proper service registration. Users must register closed generic types for AOT scenarios.")]
     private NewExpression BuildInlinedConstruct([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type inlineType, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?> shouldInline, List<ServiceIdentifier> inlineVisiting)
     {
         var metadata = GetTypeMetadata(inlineType);
@@ -403,7 +393,6 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// </summary>
     /// <param name="type">The type to inspect.</param>
     /// <returns>A new <see cref="TypeMetadata"/> describing the type.</returns>
-    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "ParameterInfo.ParameterType from constructor parameters inherits the DynamicallyAccessedMembers requirements from the declaring type's constructor analysis.")]
     private static TypeMetadata BuildTypeMetadata([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
         // Find the best constructor
@@ -420,8 +409,6 @@ public partial class DefaultServiceFactory : IServiceFactory
             for (int i = 0; i < parameters.Length; i++)
             {
                 var param = parameters[i];
-                // Suppress IL2072: ParameterInfo.ParameterType doesn't have DynamicallyAccessedMembers annotation in the framework
-                // The actual types come from the constructor which does have the proper annotations via GetTypeMetadata
                 parameterInfos[i] = new ParameterCacheInfo(
                     param.ParameterType,
                     param.Name,
@@ -584,12 +571,13 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// Cached metadata about a constructor parameter to avoid reflection on every instantiation.
     /// </summary>
     private sealed class ParameterCacheInfo(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type parameterType,
+        Type parameterType,
         string? name,
         object? defaultValue,
         object? serviceKey)
     {
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
+        // No [DynamicallyAccessedMembers]: ParameterType is only used as a service-lookup key and for
+        // Expression.Convert — never as a reflection target — so no member-preservation is required.
         public Type ParameterType { get; } = parameterType;
 
         public string? Name { get; } = name;
