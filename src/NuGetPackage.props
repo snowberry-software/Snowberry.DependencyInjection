@@ -13,7 +13,6 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageTags>ioc, dependency injection, lightweight, simple, easy</PackageTags>
 
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <Copyright>Copyright © $([System.DateTime]::Now.Year) Snowberry Software</Copyright>
         <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
@@ -22,7 +21,6 @@
         <RepositoryType>git</RepositoryType>
         <RepositoryUrl>https://github.com/snowberry-software/DependencyInjection.git</RepositoryUrl>
 
-        <NukeMarkPackable>true</NukeMarkPackable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
