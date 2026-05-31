@@ -5,7 +5,7 @@ using Snowberry.DependencyInjection.Benchmarks.Fixtures;
 namespace Snowberry.DependencyInjection.Benchmarks;
 
 /// <summary>
-/// Parallel scoped resolution across many scopes — the scenario B2 targets. A single-threaded bench
+/// Parallel scoped resolution across many scopes, the scenario B2 targets. A single-threaded bench
 /// cannot reveal a lock-contention fix, so this drives N threads each creating scopes and resolving a
 /// scoped service. ThreadingDiagnoser reports lock contentions (expected to drop sharply after B2).
 /// </summary>

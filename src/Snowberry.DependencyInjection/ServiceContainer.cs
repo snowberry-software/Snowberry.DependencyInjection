@@ -428,7 +428,7 @@ public partial class ServiceContainer : IServiceContainer
         ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
         List<ServiceIdentifier> buildPath)
     {
-        // A pre-set singleton instance (e.g. RegisterSingleton<T>(instance)) needs NO construction — its
+        // A pre-set singleton instance (e.g. RegisterSingleton<T>(instance)) needs NO construction, so its
         // ImplementationType is typically the service interface, so building a construct would fail. Return the
         // constant directly; the instance is never constructed and never tracked for disposal.
         if (serviceDescriptor.Lifetime == ServiceLifetime.Singleton && serviceDescriptor.SingletonInstance != null)

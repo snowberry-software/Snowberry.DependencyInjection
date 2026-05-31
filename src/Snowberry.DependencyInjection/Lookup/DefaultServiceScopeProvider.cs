@@ -27,7 +27,7 @@ public class DefaultServiceScopeProvider : IScope, IServiceProvider, IKeyedServi
     private bool _isDisposed;
     private DisposableContainer _disposableContainer = new();
 
-    // Copy-on-write scoped-instance cache: the published dictionary is treated as IMMUTABLE — writers (under
+    // Copy-on-write scoped-instance cache: the published dictionary is treated as IMMUTABLE. Writers (under
     // _lock) publish a fresh clone, so warm reads need no lock. `volatile` gives readers the published snapshot
     // with correct memory ordering.
     private volatile Dictionary<ServiceIdentifier, object>? _scopedInstances;

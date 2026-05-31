@@ -15,11 +15,11 @@ public class BenchmarkConfig : ManualConfig
 {
     public BenchmarkConfig()
     {
-        // A from-scratch ManualConfig has no defaults — add the essentials explicitly.
+        // A from-scratch ManualConfig has no defaults, so add the essentials explicitly.
         AddLogger(ConsoleLogger.Default);
         AddColumnProvider(DefaultColumnProviders.Instance);
 
-        // Memory is an explicit goal of this work — report Allocated/Gen0 on every benchmark.
+        // Memory is an explicit goal of this work, so report Allocated/Gen0 on every benchmark.
         AddDiagnoser(MemoryDiagnoser.Default);
 
         AddColumn(RankColumn.Arabic);

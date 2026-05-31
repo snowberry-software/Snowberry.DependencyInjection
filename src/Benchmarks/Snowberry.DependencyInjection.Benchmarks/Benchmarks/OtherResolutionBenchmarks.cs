@@ -6,7 +6,7 @@ using Snowberry.DependencyInjection.Benchmarks.Fixtures;
 
 namespace Snowberry.DependencyInjection.Benchmarks;
 
-/// <summary>Keyed resolution (non-null service key path). Snowberry-only — no honest MS.DI 1:1.</summary>
+/// <summary>Keyed resolution (non-null service key path). Snowberry-only, no honest MS.DI 1:1.</summary>
 public class KeyedResolutionBenchmarks
 {
     private ServiceContainer _container = null!;
@@ -51,7 +51,7 @@ public class OpenGenericResolutionBenchmarks
     public IRepository<BenchEntity> Resolve_OpenGeneric_Cached() => _container.GetService<IRepository<BenchEntity>>()!;
 }
 
-/// <summary>CreateInstance on an unregistered type — the reflection/activation path (B1's target). Metadata warmed in setup.</summary>
+/// <summary>CreateInstance on an unregistered type, the reflection/activation path (B1's target). Metadata warmed in setup.</summary>
 public class CreateInstanceBenchmarks
 {
     private ServiceContainer _container = null!;

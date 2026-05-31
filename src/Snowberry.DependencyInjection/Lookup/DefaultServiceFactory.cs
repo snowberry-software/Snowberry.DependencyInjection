@@ -63,7 +63,7 @@ public partial class DefaultServiceFactory : IServiceFactory
             return null!;
         }
 
-        // Compiled invoker resolves each constructor argument inline from the provider — no per-resolve object?[] array.
+        // Compiled invoker resolves each constructor argument inline from the provider, with no per-resolve object?[] array.
         object instance = metadata.ConstructorInvoker.Invoke(serviceProvider);
 
         // Inject properties using cached metadata
@@ -160,7 +160,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         var scopeParameter = Expression.Parameter(typeof(DefaultServiceScopeProvider), "scope");
 
         // Constructor arguments: each resolved via its captured child resolver (or, when frozen, an inlined
-        // `new` for a simple transient child — see BuildArgumentExpression).
+        // `new` for a simple transient child; see BuildArgumentExpression).
         var parameters = metadata.Parameters;
         var argumentExpressions = new Expression[parameters.Length];
         for (int i = 0; i < parameters.Length; i++)
@@ -178,7 +178,7 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         // object inst = (object) new T(args);  <property assignments / required-null throw>;  return inst;
         // The instance is boxed once into `inst` so property injection works on the same object for value-type
-        // services too — matching CreateInstance, which sets properties on the boxed instance.
+        // services too, matching CreateInstance, which sets properties on the boxed instance.
         var instance = Expression.Variable(typeof(object), "inst");
         var statements = new List<Expression>(properties.Length + 2)
         {
@@ -205,7 +205,7 @@ public partial class DefaultServiceFactory : IServiceFactory
                 ? Expression.Invoke(Expression.Constant(child), scopeParameter)
                 : Expression.Constant(null, typeof(object));
 
-            // property.Setter(inst, value) — invoke the public Action so the expression avoids the private type.
+            // property.Setter(inst, value): invoke the public Action so the expression avoids the private type.
             statements.Add(Expression.Invoke(Expression.Constant(property.Setter), instance, value));
         }
 
@@ -229,7 +229,7 @@ public partial class DefaultServiceFactory : IServiceFactory
     {
         if (child != null)
         {
-            // (targetType) child(scope) — Convert unboxes value types.
+            // (targetType) child(scope). Convert unboxes value types.
             var invoke = Expression.Invoke(Expression.Constant(child), scopeParameter);
             return Expression.Convert(invoke, targetType);
         }
@@ -363,7 +363,7 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         var list = new List<ServiceDependencyInfo>(metadata.Parameters.Length + metadata.InjectableProperties.Length);
 
-        // Constructor parameters: required unless they carry a (non-null) default — the same DefaultValue != null
+        // Constructor parameters: required unless they carry a (non-null) default, the same DefaultValue != null
         // proxy used when resolving (an explicit null default is treated as required).
         foreach (var parameter in metadata.Parameters)
             list.Add(new ServiceDependencyInfo(parameter.ParameterType, parameter.ServiceKey, parameter.DefaultValue == null, parameter.Name, isProperty: false));
@@ -513,7 +513,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         }
 
         // Otherwise get the constructor with the largest number of parameters. First-seen wins ties, matching
-        // the previous stable OrderByDescending(...).FirstOrDefault() — without the enumerator/sort allocation.
+        // the previous stable OrderByDescending(...).FirstOrDefault(), without the enumerator/sort allocation.
         ConstructorInfo? best = null;
         int bestParameterCount = -1;
 
@@ -577,7 +577,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         object? serviceKey)
     {
         // No [DynamicallyAccessedMembers]: ParameterType is only used as a service-lookup key and for
-        // Expression.Convert — never as a reflection target — so no member-preservation is required.
+        // Expression.Convert, never as a reflection target, so no member-preservation is required.
         public Type ParameterType { get; } = parameterType;
 
         public string? Name { get; } = name;

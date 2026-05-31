@@ -76,7 +76,7 @@ public class TransientResolutionBenchmarks
 #endif
 }
 
-/// <summary>Frozen (opt-in lock-in) transient resolution — the full-graph-inlining pipeline.</summary>
+/// <summary>Frozen (opt-in lock-in) transient resolution through the full-graph-inlining pipeline.</summary>
 public class FrozenResolutionBenchmarks
 {
     private ServiceContainer _container = null!;
@@ -141,7 +141,7 @@ public class FrozenResolutionBenchmarks
 #endif
 }
 
-/// <summary>Steady-state (warmed) singleton resolution — the common case.</summary>
+/// <summary>Steady-state (warmed) singleton resolution, the common case.</summary>
 public class SingletonResolutionBenchmarks
 {
     private ServiceContainer _container = null!;
