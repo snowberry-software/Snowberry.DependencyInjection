@@ -86,6 +86,20 @@ internal class DisposableContainer : IDisposableContainer
         }
     }
 
+    /// <summary>
+    /// Appends a disposable the caller has already verified implements <see cref="IDisposable"/>/<c>IAsyncDisposable</c>.
+    /// Skips the dedupe scan and the type re-check used by the public <see cref="RegisterDisposable(object)"/>. The
+    /// container's create-and-track path always passes a freshly-created instance, so the <c>List.Contains</c> scan was
+    /// pure waste that made tracking N services O(n²). This keeps it O(1).
+    /// </summary>
+    internal void AddDisposableUnchecked(object disposable)
+    {
+        lock (_lock)
+        {
+            (_disposables ??= []).Add(disposable);
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

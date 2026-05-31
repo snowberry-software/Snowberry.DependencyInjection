@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Snowberry.DependencyInjection;
 using Snowberry.DependencyInjection.Abstractions.Attributes;
 using Snowberry.DependencyInjection.Abstractions.Extensions;
@@ -358,7 +359,7 @@ try
     {
         using var container = new ServiceContainer();
 
-        var instance = container.CreateInstance<RecursiveGenericService<int>>();
+        var instance = container.CreateInstanceAot<RecursiveGenericService<int>>();
         Assert(instance != null, "Recursive generic should not be null");
         Assert(instance!.GetInnerType() == typeof(int), "Inner type should be int");
     });
@@ -478,7 +479,7 @@ try
         Assert(service!.ServiceFactory != null, "IServiceFactory should be injected");
 
         // Verify the injected scope is the global scope
-        Assert(service!.Scope.IsGlobalScope, "Injected scope should be global");
+        Assert(service!.Scope!.IsGlobalScope, "Injected scope should be global");
     });
 
     RunTest("BuiltInService_MultipleScopesHaveDifferentProviders", () =>
@@ -502,7 +503,7 @@ try
     {
         using var container = new ServiceContainer();
 
-        var instance = container.CreateInstance<SimpleService>();
+        var instance = container.CreateInstanceAot<SimpleService>();
         Assert(instance != null, "Instance should not be null");
     });
 
@@ -511,7 +512,7 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
 
-        var instance = container.CreateInstance<ServiceWithDependency>();
+        var instance = container.CreateInstanceAot<ServiceWithDependency>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.Dependency != null, "Dependency should be injected");
     });
@@ -521,7 +522,7 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
 
-        var instance = container.CreateInstance<ServiceWithPropertyInjection>();
+        var instance = container.CreateInstanceAot<ServiceWithPropertyInjection>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.InjectedService != null, "Property should be injected");
     });
@@ -531,7 +532,7 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
 
-        object? instance = container.CreateInstance(typeof(ServiceWithDependency));
+        object? instance = container.CreateInstanceAot(typeof(ServiceWithDependency));
         Assert(instance != null, "Instance should not be null");
         Assert(instance is ServiceWithDependency, "Instance should be correct type");
     });
@@ -541,8 +542,8 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
 
-        var instance1 = container.CreateInstance<ServiceWithDependency>();
-        var instance2 = container.CreateInstance<ServiceWithDependency>();
+        var instance1 = container.CreateInstanceAot<ServiceWithDependency>();
+        var instance2 = container.CreateInstanceAot<ServiceWithDependency>();
 
         Assert(!ReferenceEquals(instance1, instance2), "Instances should be different");
         Assert(ReferenceEquals(instance1!.Dependency, instance2!.Dependency), "Dependencies should be same (singleton)");
@@ -556,8 +557,8 @@ try
         using var scope1 = container.CreateScope();
         using var scope2 = container.CreateScope();
 
-        var instance1 = scope1.ServiceProvider.CreateInstance<ServiceWithDependency>();
-        var instance2 = scope2.ServiceProvider.CreateInstance<ServiceWithDependency>();
+        var instance1 = scope1.ServiceProvider.CreateInstanceAot<ServiceWithDependency>();
+        var instance2 = scope2.ServiceProvider.CreateInstanceAot<ServiceWithDependency>();
 
         Assert(!ReferenceEquals(instance1!.Dependency, instance2!.Dependency), "Scoped dependencies should differ");
     });
@@ -566,7 +567,7 @@ try
     {
         using var container = new ServiceContainer();
 
-        var instance = container.CreateInstance<GenericService<string>>();
+        var instance = container.CreateInstanceAot<GenericService<string>>();
         Assert(instance != null, "Generic instance should not be null");
         Assert(instance!.GetTypeName() == "String", "Generic type should be correct");
     });
@@ -575,7 +576,7 @@ try
     {
         using var container = new ServiceContainer();
 
-        var instance = container.CreateInstance<MultiGenericServiceAot<string, int, bool>>();
+        var instance = container.CreateInstanceAot<MultiGenericServiceAot<string, int, bool>>();
         Assert(instance != null, "Multi-generic instance should not be null");
         Assert(instance!.GetTypeNames() == "String, Int32, Boolean", "Type names should match");
     });
@@ -585,7 +586,7 @@ try
         using var container = new ServiceContainer();
         // SimpleService not registered
 
-        var instance = container.CreateInstance<ServiceWithOptionalProperty>();
+        var instance = container.CreateInstanceAot<ServiceWithOptionalProperty>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.OptionalService == null, "Optional property should be null");
     });
@@ -595,7 +596,7 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<IMyService, MyServiceImpl>("primary");
 
-        var instance = container.CreateInstance<ServiceWithKeyedDependency>();
+        var instance = container.CreateInstanceAot<ServiceWithKeyedDependency>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.PrimaryService != null, "Keyed dependency should be injected");
     });
@@ -605,7 +606,7 @@ try
         using var container = new ServiceContainer();
         container.RegisterSingleton<SimpleService>();
 
-        var instance = container.CreateInstance<ServiceWithMultipleConstructors>();
+        var instance = container.CreateInstanceAot<ServiceWithMultipleConstructors>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.UsedPreferredConstructor, "Should use preferred constructor");
     });
@@ -615,7 +616,7 @@ try
         using var container = new ServiceContainer();
         var serviceFactory = container.GetRequiredService<IServiceFactory>();
 
-        var instance = serviceFactory.CreateInstance<SimpleService>(container);
+        var instance = serviceFactory.CreateInstanceAot<SimpleService>(container);
         Assert(instance != null, "Instance from factory should not be null");
     });
 
@@ -624,7 +625,7 @@ try
         using var container = new ServiceContainer();
         var serviceFactory = container.GetRequiredService<IServiceFactory>();
 
-        object? instance = serviceFactory.CreateInstance(typeof(SimpleService), container);
+        object? instance = serviceFactory.CreateInstanceAot(typeof(SimpleService), container);
         Assert(instance != null, "Instance from factory should not be null");
         Assert(instance is SimpleService, "Instance should be correct type");
     });
@@ -634,7 +635,7 @@ try
         DisposableService service;
         using (var container = new ServiceContainer())
         {
-            service = container.CreateInstance<DisposableService>();
+            service = container.CreateInstanceAot<DisposableService>();
             Assert(!service.IsDisposed, "Service should not be disposed yet");
         }
 
@@ -645,7 +646,7 @@ try
     {
         using var container = new ServiceContainer();
 
-        var instance = container.CreateInstance<ComplexGenericServiceAot<List<Dictionary<string, int>>>>();
+        var instance = container.CreateInstanceAot<ComplexGenericServiceAot<List<Dictionary<string, int>>>>();
         Assert(instance != null, "Complex generic should not be null");
     });
 
@@ -655,7 +656,7 @@ try
         container.RegisterSingleton<SimpleService>();
         container.RegisterSingleton<IMyService, MyServiceImpl>();
 
-        var instance = container.CreateInstance<ServiceWithBothInjectionTypesAot>();
+        var instance = container.CreateInstanceAot<ServiceWithBothInjectionTypesAot>();
         Assert(instance != null, "Instance should not be null");
         Assert(instance!.ConstructorDependency != null, "Constructor dependency should be injected");
         Assert(instance!.PropertyDependency != null, "Property dependency should be injected");
@@ -767,6 +768,38 @@ async Task RunTestAsync(string testName, Func<Task> testAction)
     }
 }
 #endif
+
+// ========== AOT activation helpers ==========
+
+/// <summary>
+/// Routes the container's reflection-based activation APIs through a single, explicitly-acknowledged
+/// surface. The <c>CreateInstance</c> overloads are annotated <c>[RequiresDynamicCode]</c> /
+/// <c>[RequiresUnreferencedCode]</c>; this console exercises them against types statically rooted in the
+/// app, where they are safe under NativeAOT. The IL2026/IL3050 suppressions live only on these forwarders,
+/// so the rest of the project stays under full trim/AOT analysis.
+/// </summary>
+internal static class AotActivation
+{
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Activated types are statically rooted in this AOT test app.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Activated types are statically rooted in this AOT test app.")]
+    public static T CreateInstanceAot<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceProvider provider)
+        => provider.CreateInstance<T>();
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Activated types are statically rooted in this AOT test app.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Activated types are statically rooted in this AOT test app.")]
+    public static object CreateInstanceAot(this IServiceProvider provider, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
+        => provider.CreateInstance(type);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Activated types are statically rooted in this AOT test app.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Activated types are statically rooted in this AOT test app.")]
+    public static T CreateInstanceAot<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceFactory factory, IServiceProvider provider)
+        => factory.CreateInstance<T>(provider);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Activated types are statically rooted in this AOT test app.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Activated types are statically rooted in this AOT test app.")]
+    public static object CreateInstanceAot(this IServiceFactory factory, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, IServiceProvider provider)
+        => factory.CreateInstance(type, provider);
+}
 
 // ========== Test Service Classes ==========
 

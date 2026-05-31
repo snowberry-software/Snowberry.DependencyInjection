@@ -2,6 +2,9 @@
 
 namespace Snowberry.DependencyInjection.Abstractions.Helper;
 
+/// <summary>
+/// Provides helper methods for throwing common service-related exceptions.
+/// </summary>
 public static class ThrowHelper
 {
     /// <summary>

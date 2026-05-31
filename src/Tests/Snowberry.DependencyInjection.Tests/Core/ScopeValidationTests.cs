@@ -350,7 +350,7 @@ public class ScopeValidationTests
     }
 
     [Fact]
-    public void ValidateScopes_Enabled_MultipleThreadsResolvingScopedFromRoot_AllShouldThrow()
+    public async Task ValidateScopes_Enabled_MultipleThreadsResolvingScopedFromRoot_AllShouldThrow()
     {
         // Arrange
         using var container = new ServiceContainer(ServiceContainerOptions.ValidateScopes);
@@ -378,7 +378,7 @@ public class ScopeValidationTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Assert - All should have thrown ServiceScopeRequiredException
         Assert.Equal(10, exceptions.Count);

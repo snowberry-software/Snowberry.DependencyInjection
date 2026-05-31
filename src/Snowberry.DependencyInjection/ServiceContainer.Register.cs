@@ -34,6 +34,9 @@ public partial class ServiceContainer
 
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
+        if (_frozen)
+            throw new ServiceRegistryReadOnlyException("The container is frozen; registrations cannot be added, removed, or overwritten.");
+
         if (serviceDescriptor.SingletonInstance != null && serviceDescriptor.Lifetime != ServiceLifetime.Singleton)
             throw new ArgumentException("Singleton can't be used in non-singleton lifetime!", nameof(serviceDescriptor));
 
@@ -52,6 +55,9 @@ public partial class ServiceContainer
                 UnregisterServiceInternal(serviceDescriptor.ServiceType, serviceKey, out _);
 
             _serviceDescriptorMapping.AddOrUpdate(serviceIdentifier, serviceDescriptor, (_, _) => serviceDescriptor);
+
+            // The registration set changed → discard all compiled resolvers (they captured the old generation).
+            InvalidateResolverCaches();
             return this;
         }
     }
@@ -74,10 +80,20 @@ public partial class ServiceContainer
     }
 
     /// <summary>
-    /// Internal method to unregister service. Must be called within a write lock.
+    /// Removes the service registration identified by <paramref name="serviceType"/> and
+    /// <paramref name="serviceKey"/>, disposing the associated singleton instance if it is disposable.
     /// </summary>
+    /// <param name="serviceType">The type of the service to unregister.</param>
+    /// <param name="serviceKey">The optional key identifying the registration, or <see langword="null"/> for the default registration.</param>
+    /// <param name="successful"><see langword="true"/> when a matching registration was found and removed; otherwise <see langword="false"/>.</param>
+    /// <returns>The current <see cref="ServiceContainer"/> instance.</returns>
+    /// <exception cref="ServiceRegistryReadOnlyException">The container is frozen or the service registry is read-only.</exception>
+    // Must be called while holding _lock.
     private ServiceContainer UnregisterServiceInternal(Type serviceType, object? serviceKey, out bool successful)
     {
+        if (_frozen)
+            throw new ServiceRegistryReadOnlyException($"The container is frozen; '{serviceType.Name}' cannot be unregistered.");
+
         if (AreRegisteredServicesReadOnly)
             throw new ServiceRegistryReadOnlyException($"The service registry is read-only and does not allow unregistering services ('{serviceType.Name}')!");
 
@@ -92,6 +108,9 @@ public partial class ServiceContainer
                 _rootScope.DisposableContainer.RemoveDisposable(disposableSingleton);
                 disposableSingleton.Dispose();
             }
+
+            // The registration set changed → discard all compiled resolvers (they captured the old generation).
+            InvalidateResolverCaches();
 
             successful = true;
             return this;

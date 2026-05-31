@@ -20,7 +20,7 @@ public interface IServiceFactory
     object CreateInstance([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type, IServiceProvider serviceProvider, Type[]? genericTypeArguments = null);
 
     /// <summary>
-    /// Creates a new instance of the given <paramref name="type"/> and injects the services during initialization.
+    /// Creates a new instance of the given type <typeparamref name="T"/> and injects the services during initialization.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="serviceProvider">The service provider.</param>

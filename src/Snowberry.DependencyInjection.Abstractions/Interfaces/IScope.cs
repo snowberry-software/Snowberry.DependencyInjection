@@ -16,8 +16,19 @@ public interface IScope :
     /// </summary>
     event EventHandler? OnDispose;
 
+    /// <summary>
+    /// Tries to get the cached instance for the given <paramref name="serviceIdentifier"/> within this scope.
+    /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service to look up.</param>
+    /// <param name="instance">When this method returns, contains the cached instance if found; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if a cached instance was found; otherwise <see langword="false"/>.</returns>
     bool TryGetScopedInstance(IServiceIdentifier serviceIdentifier, [NotNullWhen(true)] out object? instance);
 
+    /// <summary>
+    /// Caches the given <paramref name="instance"/> for the specified <paramref name="serviceIdentifier"/> within this scope.
+    /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the service the instance belongs to.</param>
+    /// <param name="instance">The instance to cache.</param>
     void AddCached(IServiceIdentifier serviceIdentifier, object instance);
 
     /// <summary>

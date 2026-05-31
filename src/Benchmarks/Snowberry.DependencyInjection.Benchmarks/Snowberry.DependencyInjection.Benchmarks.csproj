@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>preview</LangVersion>
+
+        <IsPackable>false</IsPackable>
+
+        <!-- Directory.Build.props force-signs everything under src\; the bench host is not shipped. -->
+        <SignAssembly>false</SignAssembly>
+
+        <!-- BenchmarkDotNet requires optimized, non-debug binaries. -->
+        <Optimize>true</Optimize>
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+
+        <!-- Benchmark code deliberately exercises reflection / generic activation paths. -->
+        <IsAotCompatible>false</IsAotCompatible>
+        <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
+
+        <!-- Opt-in competitor comparison. Enable per-run with the BenchCompare environment variable, which
+             propagates to BenchmarkDotNet's child build/regeneration (a /p: switch does not). PowerShell:
+             $env:BenchCompare='true'  then run the benchmarks, then  Remove-Item Env:\BenchCompare -->
+        <BenchCompare Condition="'$(BenchCompare)' == ''">false</BenchCompare>
+        <DefineConstants Condition="'$(BenchCompare)' == 'true'">$(DefineConstants);BENCH_COMPARE</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(BenchCompare)' == 'true'">
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Snowberry.DependencyInjection\Snowberry.DependencyInjection.csproj" />
+    </ItemGroup>
+
+</Project>

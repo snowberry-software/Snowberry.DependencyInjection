@@ -56,6 +56,8 @@ dlldata.c
 
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
+# Ad-hoc before/after benchmark runs written to a custom --artifacts path
+src/Benchmarks/Snowberry.DependencyInjection.Benchmarks/Artifacts*/
 
 # .NET Core
 project.lock.json
