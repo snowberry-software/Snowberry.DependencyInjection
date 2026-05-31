@@ -124,7 +124,9 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <param name="type">The implementation type to construct. When it is a generic type definition, <paramref name="genericTypeArguments"/> closes it.</param>
     /// <param name="genericTypeArguments">The generic type arguments used to close <paramref name="type"/> when it is a generic type definition; otherwise <see langword="null"/>.</param>
     /// <param name="resolveChild">Supplies the resolver for each dependency, or <see langword="null"/> when the dependency is not registered.</param>
+    /// <param name="buildPath">The chain of service identifiers currently being built; inlined nodes are recorded here so a cycle that closes through a delegate-resolved dependency reports the full path.</param>
     /// <param name="shouldInline">Optional callback that selects dependencies to construct inline; <see langword="null"/> resolves every dependency through <paramref name="resolveChild"/>.</param>
+    /// <param name="maxInlineDepth">The maximum inlining depth: a negative value inlines without limit, while a positive value inlines at most that many levels deep. Ignored when <paramref name="shouldInline"/> is <see langword="null"/>.</param>
     /// <returns>A delegate that produces a constructed instance for a given <see cref="DefaultServiceScopeProvider"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>, or <paramref name="type"/> is a generic type definition and <paramref name="genericTypeArguments"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidServiceImplementationType"><paramref name="type"/> is an interface or abstract class.</exception>
@@ -134,7 +136,9 @@ public partial class DefaultServiceFactory : IServiceFactory
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type type,
         Type[]? genericTypeArguments,
         ChildResolverFactory resolveChild,
-        Func<Type, object?, Type?>? shouldInline = null)
+        List<ServiceIdentifier> buildPath,
+        Func<Type, object?, Type?>? shouldInline = null,
+        int maxInlineDepth = -1)
     {
         _ = type ?? throw new ArgumentNullException(nameof(type));
 
@@ -159,12 +163,12 @@ public partial class DefaultServiceFactory : IServiceFactory
 
         var scopeParameter = Expression.Parameter(typeof(DefaultServiceScopeProvider), "scope");
 
-        // Constructor arguments: each resolved via its captured child resolver (or, when frozen, an inlined
-        // `new` for a simple transient child; see BuildArgumentExpression).
+        // Constructor arguments: each resolved via its captured child resolver, or constructed inline for a
+        // simple transient child when inlining is enabled (see BuildArgumentExpression and maxInlineDepth).
         var parameters = metadata.Parameters;
         var argumentExpressions = new Expression[parameters.Length];
         for (int i = 0; i < parameters.Length; i++)
-            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting: null);
+            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting: null, maxInlineDepth, buildPath);
 
         var newExpression = Expression.New(constructor, argumentExpressions);
 
@@ -254,12 +258,16 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <param name="resolveChild">Supplies the resolver for the dependency.</param>
     /// <param name="shouldInline">Callback selecting dependencies to construct inline, or <see langword="null"/> to always resolve through <paramref name="resolveChild"/>.</param>
     /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles; may be <see langword="null"/>.</param>
+    /// <param name="maxInlineDepth">The maximum inlining depth: a negative value inlines without limit, a positive value inlines at most that many levels deep.</param>
+    /// <param name="buildPath">The shared build path; an inlined node is recorded here for the duration of its subtree so a cycle that closes through a delegate-resolved dependency reports the full path.</param>
     /// <returns>An <see cref="Expression"/> producing the argument value as the parameter type.</returns>
     /// <exception cref="CircularDependencyException">A cycle is detected among the inlined dependencies.</exception>
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "The inline type originates from a registered descriptor's ImplementationType, which is annotated [DynamicallyAccessedMembers(PublicConstructors | PublicProperties)]. The shouldInline delegate boundary erases the static annotation, but the constructor and property members are preserved.")]
-    private Expression BuildArgumentExpression(ParameterCacheInfo parameter, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?>? shouldInline, List<ServiceIdentifier>? inlineVisiting)
+    private Expression BuildArgumentExpression(ParameterCacheInfo parameter, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?>? shouldInline, List<ServiceIdentifier>? inlineVisiting, int maxInlineDepth, List<ServiceIdentifier> buildPath)
     {
-        if (shouldInline != null)
+        // Inline only while under the depth limit (negative = unlimited). Depth is the count of types already
+        // being inlined on this path; one-level inlining (maxInlineDepth 1) inlines a root's direct children only.
+        if (shouldInline != null && (maxInlineDepth < 0 || (inlineVisiting?.Count ?? 0) < maxInlineDepth))
         {
             var inlineType = shouldInline(parameter.ParameterType, parameter.ServiceKey);
             if (inlineType != null)
@@ -280,14 +288,18 @@ public partial class DefaultServiceFactory : IServiceFactory
                 }
 
                 inlineVisiting.Add(identifier);
+                // Record the inlined node on the shared build path too, so a cycle closing through a
+                // delegate-resolved grandchild (one-level inlining) reports the full path, not just the root.
+                buildPath.Add(identifier);
                 try
                 {
-                    var inlinedNew = BuildInlinedConstruct(inlineType, scopeParameter, resolveChild, shouldInline, inlineVisiting);
+                    var inlinedNew = BuildInlinedConstruct(inlineType, scopeParameter, resolveChild, shouldInline, inlineVisiting, maxInlineDepth, buildPath);
                     return Expression.Convert(inlinedNew, parameter.ParameterType);
                 }
                 finally
                 {
                     inlineVisiting.RemoveAt(inlineVisiting.Count - 1);
+                    buildPath.RemoveAt(buildPath.Count - 1);
                 }
             }
         }
@@ -305,8 +317,10 @@ public partial class DefaultServiceFactory : IServiceFactory
     /// <param name="resolveChild">Supplies the resolver for each dependency.</param>
     /// <param name="shouldInline">Callback selecting which dependencies to construct inline.</param>
     /// <param name="inlineVisiting">Tracks the types currently being inlined to detect cycles.</param>
+    /// <param name="maxInlineDepth">The maximum inlining depth propagated to each argument: a negative value inlines without limit, a positive value inlines at most that many levels deep.</param>
+    /// <param name="buildPath">The shared build path propagated to each argument for cross-node cycle detection.</param>
     /// <returns>A <see cref="NewExpression"/> that constructs <paramref name="inlineType"/>.</returns>
-    private NewExpression BuildInlinedConstruct([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type inlineType, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?> shouldInline, List<ServiceIdentifier> inlineVisiting)
+    private NewExpression BuildInlinedConstruct([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type inlineType, ParameterExpression scopeParameter, ChildResolverFactory resolveChild, Func<Type, object?, Type?> shouldInline, List<ServiceIdentifier> inlineVisiting, int maxInlineDepth, List<ServiceIdentifier> buildPath)
     {
         var metadata = GetTypeMetadata(inlineType);
         var constructor = metadata.Constructor!; // IsInlinableTransientImplementation guarantees a usable constructor
@@ -314,7 +328,7 @@ public partial class DefaultServiceFactory : IServiceFactory
         var parameters = metadata.Parameters;
         var argumentExpressions = new Expression[parameters.Length];
         for (int i = 0; i < parameters.Length; i++)
-            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting);
+            argumentExpressions[i] = BuildArgumentExpression(parameters[i], scopeParameter, resolveChild, shouldInline, inlineVisiting, maxInlineDepth, buildPath);
 
         return Expression.New(constructor, argumentExpressions);
     }

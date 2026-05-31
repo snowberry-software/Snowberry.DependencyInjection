@@ -26,14 +26,17 @@ internal delegate Func<DefaultServiceScopeProvider, object?>? ChildResolverFacto
 /// <inheritdoc cref="IServiceContainer"/>
 public partial class ServiceContainer : IServiceContainer
 {
-    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(ServiceIdentifierComparer.s_Instance);
+    // concurrencyLevel: 1 sizes the internal lock array to a single lock instead of Environment.ProcessorCount
+    // (~1.4 KB saved per dictionary). The descriptor map is written only under _lock, and the resolver caches
+    // build outside any lock then publish via the indexer, so a single write lock is sufficient; reads are lock-free.
+    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
 
     // Realized-resolver caches. The dominant null-key case is keyed by Type directly (skips ServiceIdentifier
     // construction + hash on the warm path); keyed services use the ServiceIdentifier cache. Invalidation swaps
     // both fields atomically (see InvalidateResolverCaches); reads capture the field once so a concurrent swap
     // is a benign "just-missed" window. `volatile` gives the swap acquire/release semantics.
-    private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new();
-    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(ServiceIdentifierComparer.s_Instance);
+    private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new(concurrencyLevel: 1, capacity: 31);
+    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
 
     // Tier 3 (opt-in): once frozen, registrations are locked and the compiled-resolver graph is permanent, which
     // lets the build inline pure-transient subtrees (no per-node delegate hop). Default is false (mutable).
@@ -492,16 +495,23 @@ public partial class ServiceContainer : IServiceContainer
         // Tier 2: compile a node that invokes the children's resolvers directly (no per-argument re-dispatch).
         if (ServiceFactory is DefaultServiceFactory defaultFactory)
         {
-            // Tier 3 (frozen): additionally inline simple-transient children's construction (no per-node hop).
-            Func<Type, object?, Type?>? shouldInline = _frozen
-                ? (dependencyType, dependencyKey) => FrozenInlineType(dependencyType, dependencyKey, defaultFactory)
-                : null;
+            // Inline simple-transient children's construction directly into this node, removing the per-child
+            // delegate hop. Frozen mode inlines the whole transient subtree (maxInlineDepth -1). Mutable mode
+            // inlines a single level (maxInlineDepth 1): a registration change swaps the entire resolver
+            // generation (see InvalidateResolverCaches), so the one-level-inlined parent is discarded and rebuilt
+            // against the new registration. Inlining deeper in mutable mode would only enlarge the recompiled
+            // delegate without changing correctness, so it is capped at one level.
+            Func<Type, object?, Type?> inlineSelector =
+                (dependencyType, dependencyKey) => InlinableDependencyType(dependencyType, dependencyKey, defaultFactory);
+            int maxInlineDepth = _frozen ? -1 : 1;
 
             return defaultFactory.CompileNode(
                 serviceDescriptor.ImplementationType,
                 closedGenericArguments,
                 (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath),
-                shouldInline);
+                buildPath,
+                inlineSelector,
+                maxInlineDepth);
         }
 
         // Custom IServiceFactory: fall back to by-type construction (children re-dispatch through GetKeyedService).
@@ -509,16 +519,16 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <summary>
-    /// Determines whether a dependency may be constructed directly while the container is frozen, returning the
+    /// Determines whether a dependency may be constructed directly (inlined into the parent node), returning the
     /// closed implementation type to use when it is a simple transient, or <see langword="null"/> otherwise.
     /// </summary>
     /// <param name="dependencyType">The dependency service type being evaluated.</param>
     /// <param name="dependencyKey">The optional service key of the dependency, or <see langword="null"/> for an unkeyed dependency.</param>
     /// <param name="defaultFactory">The default service factory used to validate the candidate implementation type.</param>
     /// <returns>The closed implementation type to construct directly, or <see langword="null"/> if the dependency must be resolved through its own resolver.</returns>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Reached only from Freeze(). MakeGenericType closes an open-generic implementation type the user registered (AOT consumers must register closed generic types); requires dynamic code.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "MakeGenericType closes an open-generic implementation type the user registered (AOT consumers must register closed generic types). Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresDynamicCode].")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "MakeGenericType closes the descriptor's already-registered ImplementationType, whose members are preserved via its [DynamicallyAccessedMembers] annotation.")]
-    private Type? FrozenInlineType(Type dependencyType, object? dependencyKey, DefaultServiceFactory defaultFactory)
+    private Type? InlinableDependencyType(Type dependencyType, object? dependencyKey, DefaultServiceFactory defaultFactory)
     {
         if (dependencyKey is null && IsBuiltInService(dependencyType))
             return null;
@@ -662,8 +672,8 @@ public partial class ServiceContainer : IServiceContainer
     // GetOptionalServiceDescriptor must NOT call it.
     private void InvalidateResolverCaches()
     {
-        _nullKeyResolvers = new();
-        _keyedResolvers = new(ServiceIdentifierComparer.s_Instance);
+        _nullKeyResolvers = new(concurrencyLevel: 1, capacity: 31);
+        _keyedResolvers = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
     }
 
     /// <summary>
