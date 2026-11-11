@@ -74,13 +74,3 @@ public interface IAsyncTestService : IAsyncDisposable
     Task<string> ProcessAsync(string input);
 }
 #endif
-
-/// <summary>
-/// Interface for services with constructor and property injection.
-/// </summary>
-public interface IHybridService : IDisposable
-{
-    ITestService ConstructorInjected { get; }
-    ITestService? PropertyInjected { get; set; }
-    bool IsDisposed { get; }
-}

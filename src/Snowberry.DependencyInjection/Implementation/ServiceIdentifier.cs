@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Snowberry.DependencyInjection.Abstractions.Interfaces;
+﻿using Snowberry.DependencyInjection.Abstractions.Interfaces;
 
 namespace Snowberry.DependencyInjection.Implementation;
 
@@ -41,16 +40,19 @@ public readonly struct ServiceIdentifier : IServiceIdentifier, IEquatable<Servic
         return false;
     }
 
-    /// <summary>
-    /// Value-typed equality used by <see cref="ServiceIdentifierComparer"/> so the struct can be a
-    /// dictionary key without boxing to <see cref="IServiceIdentifier"/> on every lookup.
-    /// </summary>
+    /// <inheritdoc/>
     public bool Equals(ServiceIdentifier other)
     {
+        // Value-typed equality used by the default equality comparer, so the struct can be a dictionary key
+        // without boxing to IServiceIdentifier on every lookup.
         if (ServiceKey == null)
             return other.ServiceKey == null && ServiceType == other.ServiceType;
 
-        return other.ServiceKey != null && ServiceType == other.ServiceType && ServiceKey.Equals(other.ServiceKey);
+        // Reference equality first: keys are typically the same string literal or boxed constant, which skips the
+        // virtual Equals call.
+        return other.ServiceKey != null
+            && ServiceType == other.ServiceType
+            && (ReferenceEquals(ServiceKey, other.ServiceKey) || ServiceKey.Equals(other.ServiceKey));
     }
 
     /// <inheritdoc/>
@@ -91,24 +93,4 @@ public readonly struct ServiceIdentifier : IServiceIdentifier, IEquatable<Servic
 
     /// <inheritdoc/>
     public object? ServiceKey { get; }
-}
-
-/// <summary>
-/// Value-type equality comparer for <see cref="ServiceIdentifier"/>. Supplying this to the lookup
-/// dictionaries keeps the struct key from being boxed to <see cref="IServiceIdentifier"/> on every
-/// <c>TryGetValue</c>/insert.
-/// </summary>
-internal sealed class ServiceIdentifierComparer : IEqualityComparer<ServiceIdentifier>
-{
-    public static readonly ServiceIdentifierComparer s_Instance = new();
-
-    public bool Equals(ServiceIdentifier x, ServiceIdentifier y)
-    {
-        return x.Equals(y);
-    }
-
-    public int GetHashCode(ServiceIdentifier obj)
-    {
-        return obj.GetHashCode();
-    }
 }

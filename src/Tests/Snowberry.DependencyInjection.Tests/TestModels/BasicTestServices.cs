@@ -149,26 +149,6 @@ public class KeyedServiceB : IKeyedService
 }
 
 /// <summary>
-/// Service with both constructor and property injection.
-/// </summary>
-public class HybridService : IHybridService
-{
-    public ITestService ConstructorInjected { get; }
-    public ITestService? PropertyInjected { get; set; }
-    public bool IsDisposed { get; private set; }
-
-    public HybridService(ITestService constructorInjected)
-    {
-        ConstructorInjected = constructorInjected ?? throw new ArgumentNullException(nameof(constructorInjected));
-    }
-
-    public void Dispose()
-    {
-        IsDisposed = true;
-    }
-}
-
-/// <summary>
 /// Service that resolves dependencies via IServiceProvider in constructor.
 /// Used for testing that scoped services resolved manually share the same instance.
 /// </summary>
