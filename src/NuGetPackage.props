@@ -4,7 +4,7 @@
         <Platforms>AnyCPU;x64;x86</Platforms>
 
         <Authors>Snowberry Software</Authors>
-        <AssemblyVersion>5.2.0.0</AssemblyVersion>
+        <AssemblyVersion>6.0.0.0</AssemblyVersion>
         <VersionPrefix>$(AssemblyVersion)</VersionPrefix>
         <!-- <VersionSuffix>alpha</VersionSuffix> -->
 
@@ -43,10 +43,4 @@
     <PropertyGroup Condition="'$(TF_BUILD)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
-
-    <!-- SourceLink -->
-    <ItemGroup>
-        <!-- For GitHub -->
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-    </ItemGroup>
 </Project>

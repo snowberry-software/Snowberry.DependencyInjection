@@ -29,14 +29,17 @@ public partial class ServiceContainer : IServiceContainer
     // concurrencyLevel: 1 sizes the internal lock array to a single lock instead of Environment.ProcessorCount
     // (~1.4 KB saved per dictionary). The descriptor map is written only under _lock, and the resolver caches
     // build outside any lock then publish via the indexer, so a single write lock is sufficient; reads are lock-free.
-    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
+    // No comparer is passed: for a struct key the default comparer is devirtualized and inlined by the JIT, which a
+    // custom IEqualityComparer<ServiceIdentifier> instance prevents (ServiceIdentifier implements IEquatable, so the
+    // default comparer never boxes).
+    private ConcurrentDictionary<ServiceIdentifier, IServiceDescriptor> _serviceDescriptorMapping = new(concurrencyLevel: 1, capacity: 31);
 
     // Realized-resolver caches. The dominant null-key case is keyed by Type directly (skips ServiceIdentifier
     // construction + hash on the warm path); keyed services use the ServiceIdentifier cache. Invalidation swaps
     // both fields atomically (see InvalidateResolverCaches); reads capture the field once so a concurrent swap
     // is a benign "just-missed" window. `volatile` gives the swap acquire/release semantics.
     private volatile ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> _nullKeyResolvers = new(concurrencyLevel: 1, capacity: 31);
-    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
+    private volatile ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> _keyedResolvers = new(concurrencyLevel: 1, capacity: 31);
 
     // Tier 3 (opt-in): once frozen, registrations are locked and the compiled-resolver graph is permanent, which
     // lets the build inline pure-transient subtrees (no per-node delegate hop). Default is false (mutable).
@@ -71,7 +74,7 @@ public partial class ServiceContainer : IServiceContainer
     /// <summary>
     /// Creates a new container using the given <paramref name="serviceFactory"/> and <paramref name="options"/>.
     /// </summary>
-    /// <param name="serviceFactory">The service factory that will be used.</param>
+    /// <param name="serviceFactory">The factory that constructs service instances, or <see langword="null"/> to use a <see cref="DefaultServiceFactory"/>.</param>
     /// <param name="options">The options for the container.</param>
     public ServiceContainer(IServiceFactory serviceFactory, ServiceContainerOptions options)
     {
@@ -102,6 +105,12 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Disposes the instances the container created, in reverse creation order. Every instance is disposed even
+    /// when some of them throw.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A tracked instance only implements <c>IAsyncDisposable</c>; use <c>DisposeAsync</c> instead. The other instances are still disposed.</exception>
+    /// <exception cref="AggregateException">More than one tracked instance failed to dispose; the inner exceptions are in disposal order. A single failure is rethrown unchanged.</exception>
     public void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -117,6 +126,11 @@ public partial class ServiceContainer : IServiceContainer
 
 #if NETCOREAPP
     /// <inheritdoc/>
+    /// <remarks>
+    /// Disposes the instances the container created, in reverse creation order. Every instance is disposed even
+    /// when some of them throw.
+    /// </remarks>
+    /// <exception cref="AggregateException">More than one tracked instance failed to dispose; the inner exceptions are in disposal order. A single failure is rethrown unchanged.</exception>
     public async ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
@@ -218,28 +232,40 @@ public partial class ServiceContainer : IServiceContainer
     }
 
     /// <inheritdoc/>
+    /// <exception cref="ArgumentNullException"><paramref name="serviceType"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The container has been disposed.</exception>
+    /// <exception cref="ServiceTypeNotRegistered">A required dependency of the service is not registered.</exception>
+    /// <exception cref="CircularDependencyException">The service depends on itself through its dependencies.</exception>
+    /// <exception cref="ServiceScopeRequiredException">The service is scoped and <see cref="ValidateScopes"/> is enabled.</exception>
     public object? GetService(Type serviceType)
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-
-        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
-        return GetKeyedService(serviceType, RootScope, serviceKey: null);
+        return GetKeyedService(serviceType, _rootScope, serviceKey: null);
     }
 
     /// <inheritdoc/>
+    /// <exception cref="ArgumentNullException"><paramref name="serviceType"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The container has been disposed.</exception>
+    /// <exception cref="ServiceTypeNotRegistered">A required dependency of the service is not registered.</exception>
+    /// <exception cref="CircularDependencyException">The service depends on itself through its dependencies.</exception>
+    /// <exception cref="ServiceScopeRequiredException">The service is scoped and <see cref="ValidateScopes"/> is enabled.</exception>
     public object? GetKeyedService(Type serviceType, object? serviceKey)
     {
         _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-
-        DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
-        return GetKeyedService(serviceType, RootScope, serviceKey);
+        return GetKeyedService(serviceType, _rootScope, serviceKey);
     }
 
+    /// <summary>
+    /// Resolves a service in <paramref name="scope"/>. The single resolve entry point behind every public
+    /// <c>GetService</c>/<c>GetKeyedService</c>; callers validate their arguments, this checks container disposal.
+    /// </summary>
+    /// <param name="serviceType">The service type to resolve; never <see langword="null"/>.</param>
+    /// <param name="scope">The scope the service is resolved in; never <see langword="null"/>.</param>
+    /// <param name="serviceKey">The optional service key, or <see langword="null"/> for an unkeyed service.</param>
+    /// <returns>The resolved instance, or <see langword="null"/> if the service is not registered.</returns>
+    /// <exception cref="ObjectDisposedException">The container has been disposed.</exception>
     internal object? GetKeyedService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
     {
-        _ = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
-        _ = scope ?? throw new ArgumentNullException(nameof(scope));
-
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
 
         if (serviceKey is null)
@@ -295,28 +321,38 @@ public partial class ServiceContainer : IServiceContainer
         return resolver is null ? null : resolver(scope);
     }
 
-    private object? GetBuiltInService(Type serviceType, DefaultServiceScopeProvider scope, object? serviceKey)
+    /// <summary>
+    /// Builds the resolver for a built-in service: the container itself, the resolving scope, the scope factory or
+    /// the service factory.
+    /// </summary>
+    /// <param name="serviceType">The built-in service type; <see cref="IsBuiltInService"/> must be <see langword="true"/> for it.</param>
+    /// <returns>The resolver producing the built-in service.</returns>
+    /// <exception cref="NotImplementedException"><paramref name="serviceType"/> is not a built-in service.</exception>
+    private Func<DefaultServiceScopeProvider, object?> BuildBuiltInResolver(Type serviceType)
     {
-        if (typeof(IServiceContainer).IsAssignableFrom(serviceType))
-            return this;
+        // Mapping the type to its built-in once here keeps type checks off the warm path (for example the
+        // IServiceScopeFactory lookup behind every CreateScope).
+        if (typeof(IServiceContainer).IsAssignableFrom(serviceType)
+            || typeof(IServiceRegistry).IsAssignableFrom(serviceType)
+            || typeof(IServiceDescriptorReceiver).IsAssignableFrom(serviceType))
+        {
+            return _ => this;
+        }
 
-        if (typeof(IServiceRegistry).IsAssignableFrom(serviceType))
-            return this;
-
-        if (typeof(IServiceDescriptorReceiver).IsAssignableFrom(serviceType))
-            return this;
-
-        if (typeof(IServiceProvider).IsAssignableFrom(serviceType))
-            return scope;
-
-        if (typeof(IScope).IsAssignableFrom(serviceType))
-            return scope;
+        if (typeof(IServiceProvider).IsAssignableFrom(serviceType) || typeof(IScope).IsAssignableFrom(serviceType))
+            return static scope => scope;
 
         if (typeof(IServiceScopeFactory).IsAssignableFrom(serviceType))
-            return _serviceScopeFactory;
+        {
+            var serviceScopeFactory = _serviceScopeFactory;
+            return _ => serviceScopeFactory;
+        }
 
         if (typeof(IServiceFactory).IsAssignableFrom(serviceType))
-            return ServiceFactory;
+        {
+            var serviceFactory = ServiceFactory;
+            return _ => serviceFactory;
+        }
 
         throw new NotImplementedException($"Built-in service of type '{serviceType.FullName}' is not implemented.");
     }
@@ -326,6 +362,11 @@ public partial class ServiceContainer : IServiceContainer
     /// </summary>
     private static readonly ConcurrentDictionary<Type, bool> s_BuiltInServiceCache = new();
 
+    /// <summary>
+    /// Determines whether <paramref name="serviceType"/> is provided by the container itself rather than by a registration.
+    /// </summary>
+    /// <param name="serviceType">The service type to test.</param>
+    /// <returns><see langword="true"/> if the type is a built-in service; otherwise, <see langword="false"/>.</returns>
     private static bool IsBuiltInService(Type serviceType)
     {
         return s_BuiltInServiceCache.GetOrAdd(serviceType, static type =>
@@ -373,7 +414,7 @@ public partial class ServiceContainer : IServiceContainer
         // Built-in services resolve before user registrations, and only for a null key (matches legacy order).
         if (serviceKey is null && IsBuiltInService(serviceType))
         {
-            resolver = scope => GetBuiltInService(serviceType, scope, null);
+            resolver = BuildBuiltInResolver(serviceType);
         }
         else
         {
@@ -405,6 +446,12 @@ public partial class ServiceContainer : IServiceContainer
         return resolver;
     }
 
+    /// <summary>
+    /// Builds the service types of a detected cycle, from the root of the build to the type that closes it.
+    /// </summary>
+    /// <param name="buildPath">The identifiers currently being built.</param>
+    /// <param name="closing">The service type that was reached again.</param>
+    /// <returns>The cycle path for <see cref="CircularDependencyException"/>.</returns>
     private static IReadOnlyList<Type> BuildCyclePath(List<ServiceIdentifier> buildPath, Type closing)
     {
         var path = new List<Type>(buildPath.Count + 1);
@@ -440,23 +487,31 @@ public partial class ServiceContainer : IServiceContainer
             return _ => preset;
         }
 
-        var construct = BuildConstruct(serviceIdentifier, serviceDescriptor, nullKeyCache, keyedCache, buildPath);
-
+        ResolverNode node;
         switch (serviceDescriptor.Lifetime)
         {
             case ServiceLifetime.Transient:
-                return BuildTransientResolver(construct);
+                node = new TransientResolverNode();
+                break;
 
             case ServiceLifetime.Scoped:
-                return BuildScopedResolver(serviceIdentifier, construct);
+                // ValidateScopes is fixed for the container's life (Options is get-only), so capture it once.
+                node = new ScopedResolverNode(serviceIdentifier, ValidateScopes);
+                break;
 
             case ServiceLifetime.Singleton:
-                return BuildSingletonResolver(serviceIdentifier, serviceDescriptor, construct, RebakeFor(serviceIdentifier, nullKeyCache, keyedCache));
+                node = new SingletonResolverNode(this, serviceDescriptor, RebakeFor(serviceIdentifier, nullKeyCache, keyedCache));
+                break;
 
             default:
                 var lifetime = serviceDescriptor.Lifetime;
                 return _ => ThrowHelper.ThrowServiceLifetimeNotImplemented(lifetime);
         }
+
+        // A singleton is constructed once, so compiling its construct delegate could never pay off.
+        bool tiered = serviceDescriptor.Lifetime != ServiceLifetime.Singleton;
+        node.Construct = BuildConstruct(serviceIdentifier, serviceDescriptor, nullKeyCache, keyedCache, buildPath, node, tiered);
+        return node.Resolve;
     }
 
     /// <summary>
@@ -469,15 +524,19 @@ public partial class ServiceContainer : IServiceContainer
     /// <param name="nullKeyCache">The resolver cache for unkeyed services.</param>
     /// <param name="keyedCache">The resolver cache for keyed services.</param>
     /// <param name="buildPath">The chain of service identifiers currently being built, used to detect circular dependencies.</param>
+    /// <param name="owner">The resolver node the construct delegate belongs to; receives the compiled delegate on tier-up and the disposal-tracking mode.</param>
+    /// <param name="tiered"><see langword="true"/> to compile the node once it has been invoked often enough; <see langword="false"/> to stay interpreted.</param>
     /// <returns>A delegate that constructs a new instance of the service for a given scope.</returns>
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Compiles the resolver via Expression.Compile and calls IServiceFactory.CreateInstance ([RequiresDynamicCode]). Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresDynamicCode].")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Calls IServiceFactory.CreateInstance ([RequiresDynamicCode]). Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresDynamicCode].")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Calls IServiceFactory.CreateInstance ([RequiresUnreferencedCode]); implementation members are preserved via the descriptor's annotated ImplementationType. Reached from the resolve path, which implements the BCL IServiceProvider and so cannot carry [RequiresUnreferencedCode].")]
     private Func<DefaultServiceScopeProvider, object> BuildConstruct(
         ServiceIdentifier serviceIdentifier,
         IServiceDescriptor serviceDescriptor,
         ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
         ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
-        List<ServiceIdentifier> buildPath)
+        List<ServiceIdentifier> buildPath,
+        ResolverNode owner,
+        bool tiered)
     {
         var serviceKey = serviceIdentifier.ServiceKey;
         var closedGenericArguments = GetClosedGenericTypeArguments(serviceDescriptor);
@@ -488,34 +547,85 @@ public partial class ServiceContainer : IServiceContainer
         var instanceFactory = serviceDescriptor.InstanceFactory;
         if (instanceFactory != null)
         {
+            owner.Tracking = DisposalTracking.Check;
             return scope => instanceFactory.Invoke(scope.ServiceProvider, serviceKey)
                 ?? ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, closedGenericArguments);
         }
 
-        // Tier 2: compile a node that invokes the children's resolvers directly (no per-argument re-dispatch).
         if (ServiceFactory is DefaultServiceFactory defaultFactory)
         {
-            // Inline simple-transient children's construction directly into this node, removing the per-child
-            // delegate hop. Frozen mode inlines the whole transient subtree (maxInlineDepth -1). Mutable mode
-            // inlines a single level (maxInlineDepth 1): a registration change swaps the entire resolver
-            // generation (see InvalidateResolverCaches), so the one-level-inlined parent is discarded and rebuilt
-            // against the new registration. Inlining deeper in mutable mode would only enlarge the recompiled
-            // delegate without changing correctness, so it is capped at one level.
-            Func<Type, object?, Type?> inlineSelector =
-                (dependencyType, dependencyKey) => InlinableDependencyType(dependencyType, dependencyKey, defaultFactory);
-            int maxInlineDepth = _frozen ? -1 : 1;
-
-            return defaultFactory.CompileNode(
+            // Tier 1 (interpreted): reflection-based construct whose children are this generation's resolvers,
+            // built now so cycles and missing registrations surface on first resolve, exactly as before.
+            var interpreted = defaultFactory.BuildInterpretedNode(
                 serviceDescriptor.ImplementationType,
                 closedGenericArguments,
                 (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath),
-                buildPath,
-                inlineSelector,
-                maxInlineDepth);
+                out var closedImplementationType);
+
+            // The construct delegate always produces exactly the closed implementation type, so disposal tracking
+            // is decided once instead of type-testing every instance.
+            owner.Tracking = TypeHelper.IsDisposableType(closedImplementationType) ? DisposalTracking.Always : DisposalTracking.Never;
+
+            if (!tiered || !RuntimeCompilation.IsSupported)
+                return interpreted;
+
+            // Inlining depth is fixed by the generation this node was built in (Freeze swaps the generation).
+            int maxInlineDepth = _frozen ? -1 : 1;
+
+            // Tier 2 (compiled): taken over on a later invocation; see TieredConstruct.
+            return new TieredConstruct(
+                owner,
+                interpreted,
+                () => CompileConstruct(defaultFactory, serviceIdentifier, serviceDescriptor, closedGenericArguments, nullKeyCache, keyedCache, maxInlineDepth)).Invoke;
         }
 
         // Custom IServiceFactory: fall back to by-type construction (children re-dispatch through GetKeyedService).
+        owner.Tracking = DisposalTracking.Check;
         return scope => ServiceFactory.CreateInstance(serviceDescriptor.ImplementationType, scope.ServiceProvider, closedGenericArguments);
+    }
+
+    /// <summary>
+    /// Compiles the construct delegate of a node that has been invoked often enough: a node that invokes its
+    /// children's resolvers directly and inlines simple-transient children.
+    /// </summary>
+    /// <param name="defaultFactory">The default service factory that compiles the node.</param>
+    /// <param name="serviceIdentifier">The identifier (type and key) of the service.</param>
+    /// <param name="serviceDescriptor">The descriptor describing the service's implementation.</param>
+    /// <param name="closedGenericArguments">The generic type arguments closing an open-generic implementation, or <see langword="null"/>.</param>
+    /// <param name="nullKeyCache">The resolver cache for unkeyed services of the generation the node was built in.</param>
+    /// <param name="keyedCache">The resolver cache for keyed services of the generation the node was built in.</param>
+    /// <param name="maxInlineDepth">The inlining depth: -1 (frozen) inlines the whole transient subtree, 1 (mutable) a single level.</param>
+    /// <returns>The compiled construct delegate.</returns>
+    private Func<DefaultServiceScopeProvider, object> CompileConstruct(
+        DefaultServiceFactory defaultFactory,
+        ServiceIdentifier serviceIdentifier,
+        IServiceDescriptor serviceDescriptor,
+        Type[]? closedGenericArguments,
+        ConcurrentDictionary<Type, Func<DefaultServiceScopeProvider, object?>> nullKeyCache,
+        ConcurrentDictionary<ServiceIdentifier, Func<DefaultServiceScopeProvider, object?>> keyedCache,
+        int maxInlineDepth)
+    {
+        // A private build path: compilation runs during a resolve, possibly on several threads at once, long after
+        // the build that created the node. The node's children were built (and cycle-checked) with it, so the
+        // path only serves the inlining cycle backstop.
+        var buildPath = new List<ServiceIdentifier> { serviceIdentifier };
+
+        // Inline simple-transient children's construction directly into this node, removing the per-child
+        // delegate hop. Frozen mode inlines the whole transient subtree (maxInlineDepth -1). Mutable mode
+        // inlines a single level (maxInlineDepth 1): a registration change swaps the entire resolver
+        // generation (see InvalidateResolverCaches), so the one-level-inlined parent is discarded and rebuilt
+        // against the new registration. Inlining deeper in mutable mode would only enlarge the recompiled
+        // delegate without changing correctness, so it is capped at one level.
+        Func<Type, object?, Type?> inlineSelector =
+            (dependencyType, dependencyKey) => InlinableDependencyType(dependencyType, dependencyKey, defaultFactory);
+
+        return defaultFactory.CompileNode(
+            serviceDescriptor.ImplementationType,
+            closedGenericArguments,
+            (dependencyType, dependencyKey) => GetOrBuildResolver(dependencyType, dependencyKey, nullKeyCache, keyedCache, buildPath),
+            buildPath,
+            inlineSelector,
+            maxInlineDepth);
     }
 
     /// <summary>
@@ -547,86 +657,6 @@ public partial class ServiceContainer : IServiceContainer
             : implementationType;
 
         return defaultFactory.IsInlinableTransientImplementation(closedImplementationType) ? closedImplementationType : null;
-    }
-
-    private Func<DefaultServiceScopeProvider, object?> BuildTransientResolver(Func<DefaultServiceScopeProvider, object> construct)
-    {
-        return scope =>
-        {
-            object instance = construct(scope);
-
-            if (instance.IsDisposable())
-                scope.TrackNewDisposable(instance);
-
-            return instance;
-        };
-    }
-
-    private Func<DefaultServiceScopeProvider, object?> BuildScopedResolver(ServiceIdentifier serviceIdentifier, Func<DefaultServiceScopeProvider, object> construct)
-    {
-        var serviceType = serviceIdentifier.ServiceType;
-
-        // ValidateScopes is fixed for the container's life (Options is get-only), so capture it once.
-        bool validateScope = ValidateScopes;
-
-        return scope =>
-        {
-            // The validation lives in the wrapper so it fires on the warm path AND for children reached via a
-            // captured resolver (which never re-enter the GetKeyedService entry check).
-            if (validateScope && scope.IsGlobalScope)
-                throw new ServiceScopeRequiredException(serviceType);
-
-            if (scope.TryGetScopedInstance(serviceIdentifier, out object? existing))
-                return existing!;
-
-            // Construct OUTSIDE any lock (deadlock-free; see TryAddScopedInstance).
-            object created = construct(scope);
-
-            bool won = scope.TryAddScopedInstance(serviceIdentifier, created, out object? raced);
-
-            // Track whether we won or lost so a disposable loser is disposed at scope teardown, not leaked.
-            if (created.IsDisposable())
-                scope.TrackNewDisposable(created);
-
-            return won ? created : raced!;
-        };
-    }
-
-    private Func<DefaultServiceScopeProvider, object?> BuildSingletonResolver(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, Func<DefaultServiceScopeProvider, object> construct, Action<Func<DefaultServiceScopeProvider, object?>> rebake)
-    {
-        // A pre-set instance (e.g. RegisterSingleton<T>(instance)) is never constructed and never tracked.
-        if (serviceDescriptor.SingletonInstance != null)
-        {
-            object preset = serviceDescriptor.SingletonInstance;
-            return _ => preset;
-        }
-
-        return scope =>
-        {
-            // The singleton subtree is rooted at RootScope: construct/track use RootScope, never the caller's
-            // scope (the node threads RootScope to its children), reproducing the legacy construction.
-            if (serviceDescriptor.SingletonInstance == null)
-            {
-                lock (_lock)
-                {
-                    if (serviceDescriptor.SingletonInstance == null)
-                    {
-                        serviceDescriptor.SingletonInstance = construct(RootScope);
-
-                        if (serviceDescriptor.SingletonInstance.IsDisposable())
-                            RootScope.TrackNewDisposable(serviceDescriptor.SingletonInstance);
-                    }
-                }
-            }
-
-            object instance = serviceDescriptor.SingletonInstance!;
-
-            // Constant-bake: warm resolves now return the instance directly (no descriptor virtual read). Written
-            // into the captured generation; if a mutation already swapped the cache this lands in the abandoned
-            // generation and is harmless.
-            rebake(_ => instance);
-            return instance;
-        };
     }
 
     /// <summary>
@@ -673,7 +703,7 @@ public partial class ServiceContainer : IServiceContainer
     private void InvalidateResolverCaches()
     {
         _nullKeyResolvers = new(concurrencyLevel: 1, capacity: 31);
-        _keyedResolvers = new(concurrencyLevel: 1, capacity: 31, comparer: ServiceIdentifierComparer.s_Instance);
+        _keyedResolvers = new(concurrencyLevel: 1, capacity: 31);
     }
 
     /// <summary>
@@ -723,12 +753,14 @@ public partial class ServiceContainer : IServiceContainer
     public ServiceContainerOptions Options { get; }
 
     /// <summary>
-    /// Gets whether the registered services are read-only and can't be overwritten.
+    /// Gets a value indicating whether existing registrations are read-only: overwriting or unregistering a service
+    /// throws <see cref="ServiceRegistryReadOnlyException"/>. Set by <see cref="ServiceContainerOptions.ReadOnly"/>.
     /// </summary>
     public bool AreRegisteredServicesReadOnly => (Options & ServiceContainerOptions.ReadOnly) == ServiceContainerOptions.ReadOnly;
 
     /// <summary>
-    /// Gets whether scope validation is enabled.
+    /// Gets a value indicating whether resolving a scoped service outside a scope (from the container's root scope)
+    /// throws <see cref="ServiceScopeRequiredException"/>. Set by <see cref="ServiceContainerOptions.ValidateScopes"/>.
     /// </summary>
     public bool ValidateScopes => (Options & ServiceContainerOptions.ValidateScopes) == ServiceContainerOptions.ValidateScopes;
 

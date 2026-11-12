@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <OutputType>Exe</OutputType>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>preview</LangVersion>
+        <LangVersion>latest</LangVersion>
 
         <IsPackable>false</IsPackable>
 
@@ -28,11 +28,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+        <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(BenchCompare)' == 'true'">
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
     </ItemGroup>
 
     <ItemGroup>

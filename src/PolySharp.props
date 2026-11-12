@@ -13,11 +13,12 @@
             System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
             System.Diagnostics.CodeAnalysis.DoesNotReturnAttribute;
             System.Diagnostics.CodeAnalysis.DoesNotReturnIfAttribute;
+            System.Runtime.CompilerServices.CompilerLoweringPreserveAttribute;
         </PolySharpIncludeGeneratedTypes>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-        <PackageReference Include="PolySharp" Version="1.15.0">
+        <PackageReference Include="PolySharp" Version="1.17.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>

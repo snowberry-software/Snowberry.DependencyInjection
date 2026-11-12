@@ -71,26 +71,6 @@ public class PreferredConstructorService
 }
 
 /// <summary>
-/// Service with dependency injection in constructor.
-/// </summary>
-public class ServiceWithDependencies : IDisposable
-{
-    public ITestService TestService { get; }
-    public IDependentService? OptionalService { get; set; }
-    public bool IsDisposed { get; private set; }
-
-    public ServiceWithDependencies(ITestService testService)
-    {
-        TestService = testService ?? throw new ArgumentNullException(nameof(testService));
-    }
-
-    public void Dispose()
-    {
-        IsDisposed = true;
-    }
-}
-
-/// <summary>
 /// Service with complex constructor selection scenarios - tests parameter count preference.
 /// </summary>
 public class ComplexConstructorService
