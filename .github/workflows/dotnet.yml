@@ -75,8 +75,11 @@ jobs:
       - name: Build
         run: dotnet build ${{ env.TEST_PROJECT }} --framework ${{ matrix.framework }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --nologo --verbosity quiet
 
+      # Runs from src so dotnet test picks up src/global.json, which opts into Microsoft.Testing.Platform
+      # (required by xUnit v3 on the .NET 10+ SDK).
       - name: Test
-        run: dotnet test ${{ env.TEST_PROJECT }} --framework ${{ matrix.framework }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --no-restore --nologo --verbosity quiet
+        working-directory: src
+        run: dotnet test ../${{ env.TEST_PROJECT }} --framework ${{ matrix.framework }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --no-restore --nologo --verbosity quiet
 
   # Publishes the AOT console as a Native AOT binary per target framework and runs it. Trim/AOT analysis
   # warnings fail the publish, and the console exits non-zero when any of its checks fail.
