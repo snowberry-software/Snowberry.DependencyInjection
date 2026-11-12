@@ -14,7 +14,7 @@ public class AsyncTestService : IAsyncTestService
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(AsyncTestService));
 
-        await Task.Delay(10); // Simulate async work
+        await Task.Yield(); // Simulate async work without sleeping
         return $"Async processed: {input}";
     }
 
@@ -22,7 +22,6 @@ public class AsyncTestService : IAsyncTestService
     {
         if (!IsDisposed)
         {
-            //await Task.Delay(50); // Simulate async cleanup
             IsDisposed = true;
         }
     }
@@ -52,7 +51,7 @@ public class HybridDisposableService : ITestService, IAsyncDisposable
     {
         if (!IsDisposed)
         {
-            await Task.Delay(25); // Simulate async cleanup
+            await Task.Yield(); // Simulate async cleanup without sleeping
             IsDisposed = true;
         }
     }
@@ -77,7 +76,7 @@ public class AsyncDependentService : IAsyncTestService
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(AsyncDependentService));
 
-        await Task.Delay(15); // Simulate async work
+        await Task.Yield(); // Simulate async work without sleeping
         return $"Async processed with dependency {_dependency.Name}: {input}";
     }
 
@@ -85,7 +84,7 @@ public class AsyncDependentService : IAsyncTestService
     {
         if (!IsDisposed)
         {
-            await Task.Delay(30); // Simulate async cleanup
+            await Task.Yield(); // Simulate async cleanup without sleeping
             IsDisposed = true;
         }
     }

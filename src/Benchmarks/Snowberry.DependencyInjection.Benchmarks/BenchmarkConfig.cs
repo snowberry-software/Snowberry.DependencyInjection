@@ -9,10 +9,14 @@ namespace Snowberry.DependencyInjection.Benchmarks;
 
 /// <summary>
 /// Shared configuration applied to every benchmark in this assembly (passed to <c>BenchmarkSwitcher.Run</c>).
-/// The benchmark host is net10.0 only; the library still ships net10/net9/net8/netstandard2.0.
+/// The benchmark host is net11.0 only; the library still ships net11/net10/netstandard2.0.
 /// </summary>
 public class BenchmarkConfig : ManualConfig
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BenchmarkConfig"/> class with the console logger, the default
+    /// columns plus rank, the memory diagnoser, and the GitHub Markdown and full JSON exporters.
+    /// </summary>
     public BenchmarkConfig()
     {
         // A from-scratch ManualConfig has no defaults, so add the essentials explicitly.

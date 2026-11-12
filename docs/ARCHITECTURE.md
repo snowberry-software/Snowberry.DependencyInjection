@@ -3,16 +3,23 @@
 How `Snowberry.DependencyInjection` resolves services, and how the container moves from its default mutable
 state into the opt-in frozen state.
 
-## Resolution: the compiled resolver graph
+## Resolution: the tiered resolver graph
 
-Every resolve goes through a **compiled per-service resolver**, a `Func<scope, object?>` cached per service.
+Every resolve goes through a **per-service resolver**, a `Func<scope, object?>` cached per service.
 The first resolve of a type is *cold*: the container builds the resolver graph for that type, capturing each
-dependency's resolver delegate directly so there is no per-argument re-dispatch, then compiles and caches a
-delegate. Every resolve afterward is *warm*: a dictionary lookup plus a delegate call. Singletons are baked to
-constants and scoped instances are read lock-free, so warm singleton/scoped resolves allocate nothing.
+dependency's resolver delegate directly so there is no per-argument re-dispatch. Every resolve afterward is
+*warm*: a dictionary lookup plus a delegate call. Singletons are baked to constants and scoped instances are
+read lock-free, so warm singleton/scoped resolves allocate nothing.
 
 The graph is built eagerly over the resolved subtree, so structural problems surface as real exceptions rather
 than late or fatal failures.
+
+Activation is **tiered**. A newly built node constructs its instance through reflection
+(`ConstructorInvoker`), which costs nothing to build. On its second activation the node compiles an expression
+tree (inlining simple transient children) and swaps it in; every holder of the resolver sees the compiled
+delegate from then on. Services activated only once, which includes every singleton, are never compiled, which
+keeps startup cheap. Under Native AOT, or on runtimes that interpret rather than compile expression trees, the
+reflection tier is the steady state and the expression compiler is trimmed away.
 
 ```mermaid
 flowchart TD
@@ -24,8 +31,9 @@ flowchart TD
     F --> G{"cycle or missing required dependency?"}
     G -->|cycle| H["throw CircularDependencyException with path"]
     G -->|missing required| I["bake throw of ServiceTypeNotRegistered"]
-    G -->|ok| J["compile + cache delegate"]
+    G -->|ok| J["cache reflection-based delegate"]
     J --> C
+    C -.->|second activation| L["compile expression tree, swap in"]
     C --> K["instance"]
 ```
 
@@ -42,7 +50,7 @@ first; if validation fails it throws and the container stays mutable.
 stateDiagram-v2
     [*] --> Mutable: new ServiceContainer()
     Mutable --> Mutable: Register / Unregister / Overwrite
-    Mutable --> Mutable: Resolve, compile and cache
+    Mutable --> Mutable: Resolve, cache, compile on reuse
     Mutable --> Check: Freeze() or Validate()
     Check --> Mutable: validation fails, throws ServiceValidationException
     Check --> Frozen: validation passes, lock
@@ -59,7 +67,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | Add / remove / overwrite | Yes | No, throws `ServiceRegistryReadOnlyException` |
 | Resolver caching | Per-generation, invalidated on registration change | Permanent (no invalidation machinery) |
-| Optimizations | Cached compiled resolvers, baked singletons, lock-free scoped reads | Above **plus** full-graph inlining of transient subtrees and optimized scope caches |
+| Optimizations | Cached tiered resolvers, baked singletons, lock-free scoped reads | Above **plus** inlining of whole transient subtrees into their parent |
 | Use when | You may reconfigure at runtime | Configuration is final and you want top speed |
 
 Freezing only changes *how* resolution is compiled. Resolved instances, lifetimes, and disposal behavior are
@@ -75,3 +83,11 @@ identical to mutable mode.
 
 Instances **you** supply (`RegisterSingleton<T>(instance: ...)`) are never disposed by the container; instances
 the container constructs are. Disposal is LIFO within each scope.
+
+Disposal always visits every tracked instance, even when some of them throw. A single failure is rethrown
+unchanged; several failures are thrown together as an `AggregateException`, in disposal order. This applies to
+`Dispose` and `DisposeAsync` of both scopes and the container, and matches
+`Microsoft.Extensions.DependencyInjection` from .NET 11 on. Synchronous `Dispose` reports an instance that only
+implements `IAsyncDisposable` as an `InvalidOperationException` and still disposes the rest. Once a scope is
+disposed it accepts no new disposables: an instance created by a resolve that races the disposal is disposed
+immediately and the resolve throws `ObjectDisposedException`.

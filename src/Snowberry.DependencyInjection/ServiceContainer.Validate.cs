@@ -16,6 +16,7 @@ public partial class ServiceContainer
     /// after further registration changes.
     /// </summary>
     /// <exception cref="ServiceValidationException">The service graph contains one or more validation problems.</exception>
+    /// <exception cref="ObjectDisposedException">The container has been disposed.</exception>
     public void Validate()
     {
         if (!TryValidate(out var errors))
@@ -29,6 +30,7 @@ public partial class ServiceContainer
     /// </summary>
     /// <param name="validate">When <see langword="true"/> (the default), runs <see cref="Validate"/> before freezing.</param>
     /// <exception cref="ServiceValidationException"><paramref name="validate"/> is <see langword="true"/> and the service graph contains validation problems.</exception>
+    /// <exception cref="ObjectDisposedException">The container has been disposed and is not frozen yet.</exception>
     public void Freeze(bool validate = true)
     {
         if (_frozen)
@@ -58,6 +60,7 @@ public partial class ServiceContainer
     /// </summary>
     /// <param name="errors">When this method returns, contains every validation problem found, or an empty list when the graph is valid.</param>
     /// <returns><see langword="true"/> when no validation problems were found; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ObjectDisposedException">The container has been disposed.</exception>
     public bool TryValidate(out IReadOnlyList<ServiceValidationError> errors)
     {
         DisposeThrowHelper.ThrowIfDisposed(_isDisposed, this);
@@ -70,7 +73,7 @@ public partial class ServiceContainer
             snapshot = _serviceDescriptorMapping.ToArray();
         }
 
-        var validatedOk = new HashSet<ServiceIdentifier>(ServiceIdentifierComparer.s_Instance);
+        var validatedOk = new HashSet<ServiceIdentifier>();
         var path = new List<ServiceIdentifier>();
 
         foreach (var entry in snapshot)
@@ -80,6 +83,15 @@ public partial class ServiceContainer
         return collected.Count == 0;
     }
 
+    /// <summary>
+    /// Validates one registration and, depth first, every registration it requires, adding each problem found to
+    /// <paramref name="errors"/>.
+    /// </summary>
+    /// <param name="serviceIdentifier">The identifier of the registration to validate.</param>
+    /// <param name="serviceDescriptor">The registration to validate.</param>
+    /// <param name="path">The identifiers currently being validated, used to detect cycles.</param>
+    /// <param name="validatedOk">The identifiers already validated without problems; they are skipped.</param>
+    /// <param name="errors">Receives the problems found.</param>
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Reached only from Validate()/TryValidate(). MakeGenericType closes an open-generic implementation type the user registered (AOT consumers must register closed generic types) to validate it; requires dynamic code.")]
     [UnconditionalSuppressMessage("Trimming", "IL2055:UnrecognizedReflectionPattern", Justification = "MakeGenericType closes the descriptor's already-registered ImplementationType, whose members are preserved via its [DynamicallyAccessedMembers] annotation.")]
     private void ValidateNode(ServiceIdentifier serviceIdentifier, IServiceDescriptor serviceDescriptor, List<ServiceIdentifier> path, HashSet<ServiceIdentifier> validatedOk, List<ServiceValidationError> errors)
@@ -174,6 +186,12 @@ public partial class ServiceContainer
         validatedOk.Add(serviceIdentifier);
     }
 
+    /// <summary>
+    /// Formats a dependency cycle as <c>A -&gt; B -&gt; A</c> using full type names.
+    /// </summary>
+    /// <param name="path">The identifiers on the cycle, from its start.</param>
+    /// <param name="closing">The service type that closes the cycle.</param>
+    /// <returns>The formatted cycle.</returns>
     private static string FormatPath(List<ServiceIdentifier> path, Type closing)
     {
         var names = new List<string?>(path.Count + 1);
