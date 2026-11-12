@@ -43,6 +43,4 @@
     <PropertyGroup Condition="'$(TF_BUILD)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
-
-    <!-- SourceLink is built into the .NET SDK (8+) for GitHub repositories; no package reference is needed. -->
 </Project>
